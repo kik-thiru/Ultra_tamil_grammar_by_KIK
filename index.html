@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultra Tamil Grammar by KIK</title>
+<style>
+body{background:#0000ff;color:#fff;font-family:'Times New Roman',Times,serif;margin:0;padding:20px;min-height:100vh;box-sizing:border-box}
+.container{background:#000;padding:30px;border-radius:15px;width:90%;max-width:850px;margin:20px auto;box-shadow:0 4px 15px rgba(0,0,0,.5)}
+body.full .container{max-width:none;width:96%;min-height:88vh}
+h1{color:#ffeb3b;text-align:center;margin:0 0 6px}
+h2{color:#ffeb3b;text-align:center}
+.group{display:flex;flex-direction:column;align-items:center;gap:15px;width:100%}
+.btn-yellow{background:#ffeb3b;color:#000;border:2px solid #fbc02d;padding:14px 24px;font-size:18px;font-weight:bold;cursor:pointer;border-radius:8px;width:80%;max-width:400px}
+.btn-yellow:hover,.btn-yellow:focus{background:#ffee58;outline:3px solid #fff}
+input[type=number],textarea.box,input.fx{width:95%;padding:12px;margin:8px 0;background:#fff;color:#000;font-size:18px;border:2px solid #ffeb3b;border-radius:5px;box-sizing:border-box;font-family:Arial,sans-serif}
+textarea.box{resize:none}
+#tb{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:10px}
+#tb button{background:#ffeb3b;color:#000;border:2px solid #fbc02d;padding:8px 12px;font-size:15px;font-weight:bold;border-radius:6px;cursor:pointer}
+#tb button[aria-pressed=true]{background:#000;color:#ffeb3b;border-color:#ffeb3b}
+#tb button:focus{outline:3px solid #fff}
+#ed{width:98%;min-height:380px;background:#fff;color:#000;font-family:Arial,sans-serif;font-size:18px;padding:15px;border:3px solid #ffeb3b;border-radius:8px;box-sizing:border-box;overflow-y:auto;text-align:left}
+#ed table{border-collapse:collapse}#ed td{border:1px solid #000;padding:6px;min-width:60px}
+.res{background:#111;border:2px solid #ffeb3b;padding:20px;border-radius:8px;white-space:pre-wrap;font-size:18px;line-height:1.7;margin-bottom:15px}
+.hidden{display:none!important}
+#status{color:#ffeb3b;font-size:16px;margin-top:12px;text-align:center;min-height:20px}
+.row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.row .btn-yellow{width:auto}
+#sub{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:10px;border:2px solid #ffeb3b;padding:8px;border-radius:8px;width:95%}
+#sub button{background:#fff;color:#000;border:2px solid #fbc02d;padding:8px 12px;font-size:15px;font-weight:bold;border-radius:6px;cursor:pointer}
+#sub button:focus{outline:3px solid #ffeb3b;background:#ffeb3b}
+#fmt{position:fixed;inset:0;background:rgba(0,0,0,.88);display:flex;justify-content:center;align-items:center;z-index:1000}
+.fmt-box{background:#000;border:3px solid #ffeb3b;padding:20px;border-radius:10px;max-width:420px;width:90%;max-height:90vh;overflow:auto}
+.fmt-box label{display:block;margin:8px 0 2px;font-size:17px}
+.fmt-box select{width:100%;padding:8px;font-size:16px;margin:2px 0 8px}
+.fs{border:2px solid #ffeb3b;border-radius:8px;width:90%;padding:10px 16px;margin:0}
+.fs legend{color:#ffeb3b;padding:0 8px}
+.fs label{display:block;font-size:18px;margin:6px 0}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Ultra Tamil Grammar</h1>
+<h1>by KIK</h1>
+
+<div id="s-login" class="group">
+<h2 tabindex="-1">Login</h2>
+<label for="l-name">Name</label>
+<input class="fx" id="l-name" type="text" autocomplete="off">
+<fieldset class="fs" role="radiogroup"><legend>Student or Teacher</legend>
+<label><input type="radio" name="role" value="student" id="r-student"> Student</label>
+<label><input type="radio" name="role" value="teacher"> Teacher</label>
+</fieldset>
+<fieldset class="fs hidden" id="l-level" role="radiogroup"><legend id="l-level-legend"></legend>
+<label><input type="radio" name="level" value="school" id="r-school"> School</label>
+<label><input type="radio" name="level" value="college"> College</label>
+</fieldset>
+<div id="l-detail-wrap" class="hidden" style="width:100%;text-align:center">
+<label for="l-detail" id="l-detail-label"></label>
+<input class="fx" id="l-detail" type="text" autocomplete="off">
+</div>
+<button class="btn-yellow" onclick="doLogin()">Login</button>
+</div>
+
+<div id="s-home" class="group hidden">
+<h2 tabindex="-1">Main Menu</h2>
+<button class="btn-yellow" onclick="pickMode('learning')">Learning Mode</button>
+<button class="btn-yellow" onclick="pickMode('testing')">Testing Mode</button>
+<button class="btn-yellow" onclick="openEditor()">Manual Writing</button>
+<button class="btn-yellow" onclick="exitApp()">Exit</button>
+</div>
+
+<div id="s-cat" class="group hidden">
+<h2 tabindex="-1" id="mode-title"></h2>
+<button class="btn-yellow" onclick="pickCat('Words')">Words</button>
+<button class="btn-yellow" onclick="pickCat('Line')">Line</button>
+<button class="btn-yellow" onclick="pickCat('Stanza')">Stanza</button>
+<button class="btn-yellow" onclick="pickCat('Paragraph')">Paragraph</button>
+<button class="btn-yellow" onclick="show('home')">Back</button>
+</div>
+
+<div id="s-method" class="group hidden">
+<h2 tabindex="-1">எழுது முறையைத் தேர்ந்தெடுக்கவும்</h2>
+<button class="btn-yellow" onclick="pickMethod('manual')">Manual Writing</button>
+<button class="btn-yellow" onclick="pickMethod('hearing')">Hearing and Writing</button>
+<button class="btn-yellow" onclick="show('home')">Exit</button>
+<button class="btn-yellow" onclick="show('cat')">Back</button>
+</div>
+
+<div id="s-count" class="group hidden">
+<h2 tabindex="-1">How many items you want to write?</h2>
+<label for="limit">Number of items</label>
+<input type="number" id="limit" value="1" min="1">
+<button class="btn-yellow" onclick="start()">Start</button>
+<button class="btn-yellow" onclick="show('method')">Back</button>
+</div>
+
+<div id="s-practice" class="group hidden">
+<h2 tabindex="-1">Practice</h2>
+<p id="instr" style="font-size:18px;color:#ffeb3b;margin:0"></p>
+<label for="inp" class="hidden">Write here</label>
+<textarea id="inp" class="box" rows="1" aria-label="இங்கே எழுதவும்"></textarea>
+<p id="hint" style="color:#ffeb3b;font-size:15px;margin:0"></p>
+<div id="timer-line" class="hidden" style="font-size:18px">நேரம்: <span id="time">0</span> வினாடிகள்</div>
+<button class="btn-yellow" onclick="submit()">Entry</button>
+</div>
+
+<div id="s-fix" class="group hidden">
+<h2 tabindex="-1">நீங்கள் எழுதியது தவறு</h2>
+<p id="fix-word" style="font-size:20px"></p>
+<label for="f1">Box 1</label><input class="fx" id="f1" type="text">
+<label for="f2">Box 2</label><input class="fx" id="f2" type="text">
+<label for="f3">Box 3</label><input class="fx" id="f3" type="text">
+<button class="btn-yellow" onclick="fixSubmit()">Error Submit</button>
+</div>
+
+<div id="s-editor" class="group hidden">
+<h2 tabindex="-1">Manual Writing</h2>
+<div id="tb" role="toolbar" aria-label="Text editing options"></div>
+<div id="sub" role="menu" class="hidden"></div>
+<div id="ed" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Writing box. Shift plus Alt or F6 moves to the toolbar"></div>
+<div class="row">
+<button class="btn-yellow" onclick="submitEd()">Submit</button>
+<button class="btn-yellow" onclick="show('home')">Back</button>
+</div>
+</div>
+
+<div id="s-result" class="hidden" style="width:100%">
+<h2 tabindex="-1" id="res-head"></h2>
+<div class="res" id="res-counts" tabindex="0"></div>
+<div class="res" id="res-mist" tabindex="0"></div>
+<div class="res hidden" id="res-list" tabindex="0"></div>
+<div class="row">
+<button class="btn-yellow" onclick="showList()">Show List</button>
+<button class="btn-yellow hidden" id="read-btn" onclick="speak(listText,'ta')">Read Aloud</button>
+<button class="btn-yellow" onclick="show('home')">Home</button>
+</div>
+</div>
+
+<div id="fmt" class="hidden" role="dialog" aria-modal="true" aria-labelledby="fmt-title">
+<div class="fmt-box">
+<h2 id="fmt-title" tabindex="-1">Text formatting menu</h2>
+<label><input type="checkbox" id="m-bold"> Bold</label>
+<label><input type="checkbox" id="m-italic"> Italic</label>
+<label><input type="checkbox" id="m-underline"> Underline</label>
+<label><input type="checkbox" id="m-dbl"> Double underline</label>
+<label><input type="checkbox" id="m-strikeThrough"> Strike through</label>
+<label><input type="checkbox" id="m-subscript"> Subscript</label>
+<label><input type="checkbox" id="m-superscript"> Superscript</label>
+<label><input type="checkbox" id="m-border"> Borders</label>
+<label for="m-font">Font name</label><select id="m-font"></select>
+<label for="m-color">Font color</label><select id="m-color"></select>
+<label for="m-size">Font size</label><select id="m-size"><option value="">No change</option><option value="fontup">Increase</option><option value="fontdown">Decrease</option></select>
+<label for="m-align">Alignment</label><select id="m-align"><option value="">No change</option><option value="justifyLeft">Left</option><option value="justifyCenter">Center</option><option value="justifyRight">Right</option><option value="justifyFull">Justify</option></select>
+<label for="m-list">List</label><select id="m-list"><option value="">No change</option><option value="insertUnorderedList">Bullets</option><option value="insertOrderedList">Numbering</option></select>
+<label><input type="checkbox" id="m-sort"> Alphabetical order</label>
+<label><input type="checkbox" id="m-table"> Insert table</label>
+<div class="row"><button class="btn-yellow" onclick="applyFmt()">OK, Apply</button><button class="btn-yellow" onclick="closeFmt()">Cancel</button></div>
+</div></div>
+<div id="status" aria-live="polite" role="status"></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const SC=['login','home','cat','method','count','practice','fix','editor','result'];
+const BACK={cat:'home',method:'cat',count:'method',editor:'home',result:'home'};
+const CATN={Words:'வார்த்தைகள்',Line:'வரிகள்',Stanza:'ஸ்டான்ஸாக்கள்',Paragraph:'பாராக்கள்'};
+let lastNav=0,done=false,mode,cat,method,limit,items=[],idx=0,entries=[],secs=0,timer=null,cur='home',fixTarget='',W=[],listText='',audio=null,saved=null;
+const api=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
+const say=m=>{$('status').textContent='';setTimeout(()=>$('status').textContent=m,50)};
+const n=s=>(s||'').normalize('NFC').replace(/[\u200b-\u200d\ufeff\s]/g,'').replace(/[.,!?;:'"“”‘’]+$/,'');
+
+function show(id){
+  lastNav=Date.now();
+  if(id!=='practice'&&id!=='fix')clearInterval(timer);
+  SC.forEach(s=>$('s-'+s).classList.add('hidden'));
+  const el=$('s-'+id);el.classList.remove('hidden');cur=id;
+  document.body.classList.toggle('full',id==='result');
+  $('status').textContent='';
+  const h=el.querySelector('h2');if(h)h.focus();
+}
+document.addEventListener('keydown',e=>{
+  const t=e.target,typing=t.closest&&t.closest('input,textarea,#ed');
+  if(e.key==='Backspace'&&(e.repeat||Date.now()-lastNav<350))return;
+  if(BACK[cur]&&((e.key==='Escape'&&!(t.closest&&t.closest('#ed')))||(e.key==='Backspace'&&!typing))){e.preventDefault();show(BACK[cur])}
+});
+
+function pickMode(m){mode=m;$('mode-title').textContent=m==='learning'?'Learning Mode':'Testing Mode';show('cat')}
+function pickCat(c){cat=c;show('method')}
+function pickMethod(m){method=m;$('limit').value=1;show('count')}
+let student=null;
+function loginUi(){
+  const role=document.querySelector('input[name=role]:checked'),lv=document.querySelector('input[name=level]:checked');
+  $('l-level').classList.toggle('hidden',!role);
+  $('l-level-legend').textContent=role&&role.value==='teacher'?'School teacher or college teacher':'School student or college student';
+  $('l-detail-wrap').classList.toggle('hidden',!(role&&lv));
+  if(role&&lv)$('l-detail-label').textContent=(lv.value==='school'?'Class':'Degree')+(role.value==='teacher'?' you teach':'');
+}
+$('s-login').addEventListener('change',e=>{
+  loginUi();
+  if(e.target.name==='role')say($('l-level-legend').textContent+' என்பதை தேர்ந்தெடுங்கள்');
+  if(e.target.name==='level')say($('l-detail-label').textContent+' என்பதை எழுதுங்கள்');
+});
+function doLogin(){
+  const name=$('l-name').value.trim(),role=document.querySelector('input[name=role]:checked'),
+        lv=document.querySelector('input[name=level]:checked'),detail=$('l-detail').value.trim();
+  if(!name){say('பெயரை எழுதுங்கள்');$('l-name').focus();return}
+  if(!role){say('மாணவரா ஆசிரியரா என்று தேர்ந்தெடுங்கள்');$('r-student').focus();return}
+  if(!lv){say($('l-level-legend').textContent+' என்று தேர்ந்தெடுங்கள்');$('r-school').focus();return}
+  if(!detail){say($('l-detail-label').textContent+' என்பதை எழுதுங்கள்');$('l-detail').focus();return}
+  student={name:name,role:role.value,level:lv.value,detail:detail};
+  try{sessionStorage.setItem('student',JSON.stringify(student))}catch(e){}
+  show('home');
+}
+$('s-login').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doLogin()}});
+function exitApp(){window.location.href='https://www.google.com'}
+
+async function start(){
+  limit=Math.max(1,parseInt($('limit').value)||1);
+  items=[];
+  if(method==='hearing'){
+    say('உள்ளீடுகள் தயாராகின்றன...');
+    try{items=(await api('/api/generate_prompts',{category:cat,count:limit})).items}
+    catch(e){say('பிழை: இணைய இணைப்பை சரிபார்க்கவும்');return}
+  }
+  done=false;idx=0;entries=[];secs=0;clearInterval(timer);
+  $('inp').rows={Words:1,Line:1,Stanza:3,Paragraph:11}[cat];$('inp').value='';
+  $('timer-line').classList.toggle('hidden',mode!=='testing');$('time').textContent=0;
+  let h=(cat==='Stanza'||cat==='Paragraph')?'சமர்ப்பிக்க Ctrl+Enter அல்லது Entry பட்டன். ':'சமர்ப்பிக்க Enter. ';
+  if(cat==='Line'||cat==='Paragraph')h+='முடிவில் டாட் (.) வைக்கவும். ';
+  if(cat==='Words')h+='ஒரே ஒரு வார்த்தை மட்டும். ';
+  if(method==='hearing')h+='Ctrl+Shift+R = மீண்டும் கேட்க, Ctrl+Shift+T = ஆங்கில மொழிபெயர்ப்பு.';
+  $('hint').textContent=h;
+  label();show('practice');$('inp').focus();
+  if(mode==='testing'){const t0=Date.now();timer=setInterval(()=>{secs=Math.floor((Date.now()-t0)/1000);$('time').textContent=secs},1000)}
+  if(method==='hearing')speak(items[0],'ta');
+}
+function label(){$('instr').textContent=`உள்ளீடு ${idx+1} / ${limit}: `+(method==='hearing'?'கவனமாகக் கேட்டு எழுதவும்':'நீங்களே எழுதவும்')}
+
+$('inp').addEventListener('input',()=>{if(cat==='Words')$('inp').value=$('inp').value.replace(/\s+/g,'')});
+$('inp').addEventListener('keydown',e=>{
+  if(e.ctrlKey&&e.shiftKey&&e.code==='KeyR'){e.preventDefault();if(method==='hearing')speak(items[idx],'ta');return}
+  if(e.ctrlKey&&e.shiftKey&&e.code==='KeyT'){e.preventDefault();if(method==='hearing')translateSpeak(items[idx]);return}
+  if(e.key==='Enter'){
+    const multi=cat==='Stanza'||cat==='Paragraph';
+    if(!multi||e.ctrlKey){e.preventDefault();submit()}
+  }
+});
+
+async function submit(){
+  if(done)return;
+  const t=$('inp').value.trim();
+  if(!t){say('முதலில் எழுதுங்கள்');return}
+  if((cat==='Line'||cat==='Paragraph')&&!t.endsWith('.')){say('முடிவில் டாட் (.) வைக்கவும்');return}
+  $('inp').value='';
+  const e={typed:t,expected:method==='hearing'?items[idx]:'',ok:true};
+  entries.push(e);
+  if(method==='hearing'){e.ok=n(t)===n(e.expected)}
+  else{
+    const p=api('/api/check_word',{text:t}).then(d=>{e.ok=d.ok;e.expected=d.correct||t}).catch(()=>{e.ok=true;e.expected=t});
+    if(mode==='learning'){say('சரிபார்க்கிறது...');await p}else e.p=p;
+  }
+  if(!e.ok&&mode==='learning'){openFix(e.expected,e.typed);return}
+  next();
+}
+function next(){
+  idx++;
+  if(idx>=limit){finish();return}
+  label();show('practice');$('inp').focus();
+  if(method==='hearing')speak(items[idx],'ta');
+}
+
+function openFix(c,typed){
+  fixTarget=c;['f1','f2','f3'].forEach(i=>$(i).value='');
+  const tail=' மூன்று பெட்டிகளிலும் சரியாக எழுதி Error Submit அழுத்தவும்.';
+  $('fix-word').textContent='நீங்கள் எழுதியது: '+typed+'. சரியான வார்த்தை: '+c+'.'+tail;
+  show('fix');
+  api('/api/explain',{pairs:[[typed,c]],header:false}).then(d=>{
+    $('fix-word').textContent='உங்கள் தவறு: '+d.text+tail;
+    say(d.text);
+  }).catch(()=>say('சரியான வார்த்தை: '+c));
+}
+function fixSubmit(){
+  for(const i of ['f1','f2','f3']){
+    if(n($(i).value)!==n(fixTarget)){
+      say('பெட்டி '+i[1]+' தவறு. நீங்கள் எழுதியது: '+$(i).value+'. சரியான வார்த்தை: '+fixTarget);$(i).focus();
+      if(method==='hearing')speak(fixTarget,'ta');
+      return;
+    }
+  }
+  next();
+}
+
+async function finish(){
+  done=true;clearInterval(timer);
+  say('முடிவுகள் தயாராகின்றன...');
+  await Promise.all(entries.map(e=>e.p));
+  const wrong=entries.filter(e=>!e.ok).map(e=>[e.typed,e.expected]);
+  result({[cat]:entries.length},wrong,mode==='testing'?secs:null);
+}
+
+function result(counts,wrong,time){
+  W=wrong;listText='';
+  show('result');
+  $('res-head').textContent='நீங்கள் எழுதிய ரிசல்ட்'+(time!==null?' - நேரம்: '+time+' வினாடிகள்':'');
+  $('res-counts').textContent='நீங்கள் மொத்தமாக எழுதியவை:\n'+Object.keys(counts).map(k=>`${CATN[k]}: ${counts[k]}`).join('\n');
+  $('res-mist').textContent='நீங்கள் தவறு செய்த வார்த்தைகளின் எண்ணிக்கை: '+wrong.length;
+  $('res-list').classList.add('hidden');$('read-btn').classList.add('hidden');
+}
+async function showList(){
+  if(!W.length){listText='தவறுகள் எதுவும் இல்லை. வாழ்த்துகள்!'}
+  else{
+    say('பட்டியல் தயாராகிறது...');
+    try{listText=(await api('/api/explain',{pairs:W})).text}catch(e){say('பட்டியலைப் பெற முடியவில்லை');return}
+  }
+  $('res-list').textContent=listText;$('res-list').classList.remove('hidden');$('read-btn').classList.remove('hidden');
+  $('res-list').setAttribute('tabindex','-1');$('res-list').focus();say('');
+}
+
+/* ---------- Manual Writing editor ---------- */
+const ed=$('ed');
+const COLORS=[['Black','#000000'],['Red','#cc0000'],['Blue','#0000ff'],['Green','#008000'],['Purple','#800080'],['Orange','#e67300']];
+const FONTS=['Arial','Times New Roman','Courier New','Verdana','Georgia','Latha','Nirmala UI'];
+const TB=[
+ ['Bold','bold','t'],['Italic','italic','t'],['Underline','underline','t'],['Double underline','dbl','t'],['Strike through','strikeThrough','t'],
+ ['Subscript','subscript','t'],['Superscript','superscript','t'],['Base line','baseline'],
+ ['Font color','m',COLORS.map(c=>[c[0],'foreColor',c[1]])],
+ ['Font name','m',FONTS.map(f=>[f,'fontName',f])],
+ ['Increase font size','fontup'],['Decrease font size','fontdown'],
+ ['Alignment','m',[['Left','justifyLeft'],['Center','justifyCenter'],['Right','justifyRight'],['Justify','justifyFull']]],
+ ['Bullets','insertUnorderedList'],['Numbering','insertOrderedList'],['Alphabetical order','sort'],['Borders','border'],
+ ['Insert table','table'],['Columns','cols','t']
+];
+let subOwner=null;
+TB.forEach(([label,cmd,x],i)=>{
+  const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.cmd=cmd;b.tabIndex=i===0?0:-1;
+  if(x==='t')b.setAttribute('aria-pressed','false');
+  if(cmd==='m'){b.setAttribute('aria-haspopup','menu');b.setAttribute('aria-expanded','false');b._sub=x;b.addEventListener('click',()=>openSub(b))}
+  else b.addEventListener('click',()=>runCmd(cmd,null,b));
+  b.addEventListener('mousedown',e=>e.preventDefault());
+  $('tb').appendChild(b);
+});
+document.addEventListener('selectionchange',()=>{const s=getSelection();if(s.rangeCount&&ed.contains(s.anchorNode))saved=s.getRangeAt(0).cloneRange()});
+const esc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
+function closeSub(back){
+  $('sub').classList.add('hidden');$('sub').innerHTML='';
+  if(subOwner){subOwner.setAttribute('aria-expanded','false');if(back)subOwner.focus()}
+  subOwner=null;
+}
+function openSub(b){
+  if(subOwner===b){closeSub(true);return}
+  closeSub(false);subOwner=b;b.setAttribute('aria-expanded','true');
+  const s=$('sub');
+  b._sub.forEach(([l,c,a],i)=>{
+    const o=document.createElement('button');o.type='button';o.textContent=l;o.setAttribute('role','menuitem');o.tabIndex=i===0?0:-1;
+    o.addEventListener('mousedown',e=>e.preventDefault());
+    o.addEventListener('click',()=>{const nm=b.textContent;closeSub(false);runCmd(c,a,null);say(nm+': '+l)});
+    s.appendChild(o);
+  });
+  s.classList.remove('hidden');s.firstChild.focus();
+}
+function toggleP(b){if(b)b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')==='true'?'false':'true')}
+function sortSel(){
+  const s=getSelection();let nd=s.anchorNode;
+  while(nd&&nd!==ed&&!/^(UL|OL)$/.test(nd.nodeName))nd=nd.parentNode;
+  if(nd&&nd!==ed){[...nd.children].sort((a,b)=>a.textContent.localeCompare(b.textContent,'ta')).forEach(x=>nd.appendChild(x));say('அகர வரிசையில் அடுக்கப்பட்டது');return}
+  const t=s.toString();
+  if(!t.includes('\n')){say('பல வரிகளை தேர்ந்தெடுக்கவும் அல்லது பட்டியலுக்குள் இருக்கவும்');return}
+  const l=t.split('\n').filter(x=>x.trim()).sort((a,b)=>a.localeCompare(b,'ta'));
+  document.execCommand('insertHTML',false,l.map(esc).join('<br>'));say('அகர வரிசையில் அடுக்கப்பட்டது');
+}
+function runCmd(c,arg,b){
+  ed.focus();
+  if(saved){const s=getSelection();s.removeAllRanges();s.addRange(saved)}
+  const sel=getSelection().toString();
+  const wrap=st=>{if(!sel){say('முதலில் எழுத்தை தேர்ந்தெடுக்கவும்');return false}document.execCommand('insertHTML',false,'<span style="'+st+'">'+esc(sel)+'</span>');return true};
+  if(c==='dbl'){if(wrap('text-decoration:underline;text-decoration-style:double'))toggleP(b)}
+  else if(c==='border'){wrap('border:1px solid #000;padding:1px 3px')}
+  else if(c==='wrapstyle'){wrap(arg)}
+  else if(c==='baseline'){['subscript','superscript'].forEach(x=>{if(document.queryCommandState(x))document.execCommand(x)});say('பேஸ் லைன்')}
+  else if(c==='fontup'||c==='fontdown'){
+    let v=parseInt(document.queryCommandValue('fontSize'))||3;v=Math.min(7,Math.max(1,v+(c==='fontup'?1:-1)));
+    document.execCommand('fontSize',false,v);say('எழுத்து அளவு '+v);
+  }
+  else if(c==='table'){document.execCommand('insertHTML',false,'<table><tr><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>&nbsp;</td><td>&nbsp;</td></tr></table><p><br></p>');say('2 x 2 அட்டவணை சேர்க்கப்பட்டது')}
+  else if(c==='cols'){const on=b.getAttribute('aria-pressed')!=='true';ed.style.columnCount=on?2:1;b.setAttribute('aria-pressed',on)}
+  else if(c==='sort'){sortSel()}
+  else{document.execCommand(c,false,arg);if(b&&b.hasAttribute('aria-pressed'))b.setAttribute('aria-pressed',document.queryCommandState(c))}
+}
+function toToolbar(){const f=$('tb').querySelector('button[tabindex="0"]')||$('tb').firstChild;f.focus()}
+ed.addEventListener('keydown',e=>{
+  if(e.ctrlKey&&e.shiftKey&&e.altKey){e.preventDefault();openFmt();return}
+  if(e.key==='F6'){e.preventDefault();toToolbar();return}
+  if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();submitEd()}
+});
+function roving(box,e,vertical){
+  const bs=[...box.children],i=bs.indexOf(document.activeElement);if(i<0)return null;
+  const nx=vertical?'ArrowDown':'ArrowRight',pv=vertical?'ArrowUp':'ArrowLeft';
+  let j=null;
+  if(e.key===nx||(!vertical&&e.key==='ArrowDown'&&bs[i].dataset.cmd!=='m')||(vertical&&e.key==='ArrowRight'))j=(i+1)%bs.length;
+  if(e.key===pv||(!vertical&&e.key==='ArrowUp')||(vertical&&e.key==='ArrowLeft'))j=(i-1+bs.length)%bs.length;
+  if(j!==null){e.preventDefault();bs.forEach(x=>x.tabIndex=-1);bs[j].tabIndex=0;bs[j].focus()}
+  return bs[i];
+}
+$('tb').addEventListener('keydown',e=>{
+  const cur=roving($('tb'),e,false);if(!cur)return;
+  if(e.key==='ArrowDown'&&cur.dataset.cmd==='m'){e.preventDefault();openSub(cur)}
+  if(e.key==='Escape'||e.key==='F6'){e.preventDefault();closeSub(false);ed.focus()}
+});
+$('sub').addEventListener('keydown',e=>{
+  roving($('sub'),e,true);
+  if(e.key==='Escape'||e.key==='ArrowUp'&&document.activeElement===$('sub').firstChild&&false){e.preventDefault();closeSub(true)}
+});
+const SIGN=['bold','italic','underline','strikeThrough','subscript','superscript'];
+$('m-font').innerHTML='<option value="">No change</option>'+FONTS.map(f=>`<option>${f}</option>`).join('');
+$('m-color').innerHTML='<option value="">No change</option>'+COLORS.map(c=>`<option value="${c[1]}">${c[0]}</option>`).join('');
+function openFmt(){
+  ed.focus();
+  if(saved){const s=getSelection();s.removeAllRanges();s.addRange(saved)}
+  SIGN.forEach(c=>{const el=$('m-'+c);el.checked=document.queryCommandState(c);el.dataset.init=el.checked?'1':'0'});
+  ['m-dbl','m-border','m-sort','m-table'].forEach(i=>$(i).checked=false);
+  ['m-font','m-color','m-size','m-align','m-list'].forEach(i=>$(i).value='');
+  $('fmt').classList.remove('hidden');$('fmt-title').focus();
+}
+function closeFmt(){$('fmt').classList.add('hidden');ed.focus()}
+function applyFmt(){
+  $('fmt').classList.add('hidden');
+  SIGN.forEach(c=>{const el=$('m-'+c);if((el.checked?'1':'0')!==el.dataset.init)runCmd(c,null,null)});
+  if($('m-font').value)runCmd('fontName',$('m-font').value,null);
+  if($('m-color').value)runCmd('foreColor',$('m-color').value,null);
+  if($('m-size').value)runCmd($('m-size').value,null,null);
+  if($('m-align').value)runCmd($('m-align').value,null,null);
+  if($('m-list').value)runCmd($('m-list').value,null,null);
+  const st=($('m-dbl').checked?'text-decoration:underline;text-decoration-style:double;':'')+($('m-border').checked?'border:1px solid #000;padding:1px 3px;':'');
+  if(st)runCmd('wrapstyle',st,null);
+  if($('m-sort').checked)runCmd('sort',null,null);
+  if($('m-table').checked)runCmd('table',null,null);
+  ed.focus();say('மாற்றங்கள் பயன்படுத்தப்பட்டன');
+}
+$('fmt').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();closeFmt()}});
+function openEditor(){
+  ed.innerHTML='';ed.style.columnCount=1;closeSub(false);
+  $('tb').querySelectorAll('[aria-pressed]').forEach(b=>b.setAttribute('aria-pressed','false'));
+  show('editor');ed.focus();
+}
+async function submitEd(){
+  const t=ed.innerText.trim();
+  if(!t){say('முதலில் எழுதுங்கள்');return}
+  say('ஜெமினி சரிபார்க்கிறது...');
+  let wrong;
+  try{wrong=(await api('/api/check_text',{text:t})).mistakes.map(m=>[m.wrong,m.correct])}
+  catch(e){say('சரிபார்க்க முடியவில்லை. இணைய இணைப்பை சரிபார்த்து மீண்டும் Submit அழுத்தவும். உங்கள் எழுத்து அழியாது.');return}
+  const blocks=t.split(/\n\s*\n/).filter(x=>x.trim());
+  result({
+    Words:t.split(/\s+/).length,
+    Line:t.split('\n').filter(x=>x.trim()).length,
+    Stanza:blocks.filter(b=>b.trim().split('\n').length>1).length,
+    Paragraph:blocks.length
+  },wrong,null);
+}
+
+/* ---------- Voices ---------- */
+if('speechSynthesis' in window)speechSynthesis.getVoices();
+function speak(text,lang){
+  if(!text)return;
+  if(audio){audio.pause()}
+  if(lang==='en'&&'speechSynthesis' in window){
+    const v=speechSynthesis.getVoices().find(v=>/David/i.test(v.name));
+    if(v){const u=new SpeechSynthesisUtterance(text);u.voice=v;speechSynthesis.cancel();speechSynthesis.speak(u);return}
+  }
+  fetch('/api/generate_tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,lang:lang})})
+    .then(r=>{if(!r.ok)throw 0;return r.blob()})
+    .then(b=>{audio=new Audio(URL.createObjectURL(b));audio.play()})
+    .catch(()=>say('ஆடியோ கிடைக்கவில்லை. இணைய இணைப்பை சரிபார்க்கவும்.'));
+}
+function translateSpeak(t){
+  api('/api/translate',{text:t}).then(d=>speak(d.translation,'en')).catch(()=>say('மொழிபெயர்க்க முடியவில்லை'));
+}
+try{const sv=sessionStorage.getItem('student');if(sv){student=JSON.parse(sv)}}catch(e){}
+show(student?'home':'login');
+</script>
+</body>
+</html>
