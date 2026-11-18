@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Results Page</title>
+<style>
+body{background:#111;color:#00ff00;font-family:Arial,sans-serif;padding:20px;margin:0}
+.box{max-width:1100px;margin:0 auto;background:#222;padding:20px;border-radius:8px;border:1px solid #444}
+input[type=password],input[type=text],select{padding:10px;background:#111;color:#fff;border:1px solid #555;border-radius:4px;font-size:15px;box-sizing:border-box}
+button{background:#ffff00;color:#000;padding:8px 14px;border:none;font-weight:bold;cursor:pointer;border-radius:4px;font-size:14px}
+.danger{background:#ff4444;color:#fff}.error{color:#ff4444;font-weight:bold;margin-bottom:10px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:20px;background:#1a1a1a;padding:15px;border-radius:6px}
+.bar form{display:flex;gap:8px;margin:0}
+.person{display:flex;gap:10px;align-items:flex-start;border-bottom:1px solid #444;padding:10px 0}
+.person details{flex:1}.person summary{cursor:pointer;color:#fff;font-size:16px;padding:6px 0}
+.inner{background:#1a1a1a;border-radius:6px;padding:12px 16px;margin:8px 0;color:#fff}
+.inner h3,.inner h4{color:#ffff00;margin:12px 0 4px}.inner ul{margin:4px 0}
+pre{white-space:pre-wrap;color:#0ff;margin:8px 0}
+</style></head><body>
+{% if not logged_in %}
+<div class="box" style="max-width:450px;margin-top:100px;text-align:center">
+<h1 style="color:#ffff00">Admin Results Page</h1>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="POST"><label for="pw">Admin password</label><br>
+<input type="password" id="pw" name="password" required autofocus style="width:100%;margin:10px 0 15px">
+<button type="submit" style="width:100%;padding:12px">Login</button></form></div>
+{% else %}
+<div class="box">
+<h1 style="color:#ffff00;text-align:center;margin-top:0">Admin Results Page</h1>
+<div class="bar">
+<form method="POST"><input type="text" name="search" value="{{ search }}" aria-label="Search" placeholder="Search name, class, degree..."><button type="submit">Search</button></form>
+<form method="POST" onsubmit="return confirm('Delete everything in this time range?');">
+<input type="hidden" name="action" value="delete_time">
+<select name="time_filter" required aria-label="Delete by time"><option value="" disabled selected>Delete by time</option>
+<option value="30_minutes">Last 30 minutes</option><option value="1_hour">Last 1 hour</option><option value="24_hours">Last 24 hours</option>
+<option value="7_days">Last 7 days</option><option value="30_days">Last 30 days</option><option value="60_days">Last 60 days</option></select>
+<button class="danger" type="submit">Delete</button></form>
+<form method="POST" onsubmit="return confirm('All results will be deleted permanently. Continue?');">
+<input type="hidden" name="action" value="delete_all"><button class="danger" type="submit">Delete All</button></form>
+<button type="button" data-key="" onclick="ai(this)">AI Summary of All</button>
+<form method="POST"><input type="hidden" name="action" value="logout"><button type="submit">Logout</button></form>
+</div>
+<pre id="ai-all" tabindex="0"></pre>
+<p style="color:#fff">Total people: {{ people|length }} (times are in IST)</p>
+{% for p in people %}
+<div class="person">
+<details>
+<summary><b>{{ p.name }}</b> - {{ p.role_label }}, {{ p.level_label }}, {{ p.detail_label }}: {{ p.detail }} - Last used: {{ p.last }}</summary>
+<div class="inner">
+<p>Logged in <b>{{ p.visits }}</b> time(s). Practice sessions: <b>{{ p.sessions }}</b>. First seen: {{ p.first }}. Last seen: {{ p.last }}.</p>
+<h3>Modes used</h3><ul>{% for l in p.mode_lines %}<li>{{ l }}</li>{% else %}<li>No practice yet</li>{% endfor %}</ul>
+<h3>How they wrote</h3><ul>{% for l in p.method_lines %}<li>{{ l }}</li>{% else %}<li>-</li>{% endfor %}</ul>
+<h3>Totals</h3><ul>
+<li>Total words written: {{ p.words }}</li><li>Total items written (words, lines, stanzas, paragraphs): {{ p.items }}</li>
+<li>Spelling mistakes (words): {{ p.mistakes }}</li><li>Total testing time: {{ p.seconds }} seconds</li></ul>
+<h3>Day by day</h3>
+{% for d in p.days %}<h4>{{ d.date }} - {{ d.logins }} login(s)</h4><ul>{% for l in d.lines %}<li>{{ l }}</li>{% else %}<li>Logged in only</li>{% endfor %}</ul>{% endfor %}
+<button type="button" data-key="{{ p.key }}" onclick="ai(this)">AI Summary</button>
+<pre tabindex="0"></pre>
+</div>
+</details>
+<form method="POST" onsubmit="return confirm('Delete this person and all their results?');" style="margin:0">
+<input type="hidden" name="action" value="delete_one"><input type="hidden" name="key" value="{{ p.key }}">
+<button class="danger" type="submit" aria-label="Delete {{ p.name }}">Delete</button></form>
+</div>
+{% else %}<p style="color:#888;text-align:center;padding:30px">No results here.</p>{% endfor %}
+<p><a href="/" style="color:#ffff00">&larr; Go to Home Page</a></p></div>
+<script>
+function ai(b){
+  const out=b.dataset.key===''?document.getElementById('ai-all'):b.nextElementSibling;
+  out.textContent='AI is summarizing...';
+  fetch('/view_results/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:b.dataset.key})})
+    .then(r=>r.json()).then(d=>{out.textContent=d.summary;out.focus()}).catch(()=>out.textContent='Could not get the summary.');
+}
+</script>
+{% endif %}</body></html>
