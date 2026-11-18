@@ -208,8 +208,9 @@ function doLogin(){
   if(!role){say('மாணவரா ஆசிரியரா என்று தேர்ந்தெடுங்கள்');$('r-student').focus();return}
   if(!lv){say($('l-level-legend').textContent+' என்று தேர்ந்தெடுங்கள்');$('r-school').focus();return}
   if(!detail){say($('l-detail-label').textContent+' என்பதை எழுதுங்கள்');$('l-detail').focus();return}
-  student={name:name,role:role.value,level:lv.value,detail:detail};
+  student={name:name,role:role.value,level:lv.value,detail:detail,sid:Math.random().toString(36).slice(2)+Date.now().toString(36)};
   try{sessionStorage.setItem('student',JSON.stringify(student))}catch(e){}
+  api('/api/log_login',{student:student}).catch(()=>{});
   show('home');
 }
 $('s-login').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doLogin()}});
@@ -296,16 +297,17 @@ async function finish(){
   say('முடிவுகள் தயாராகின்றன...');
   await Promise.all(entries.map(e=>e.p));
   const wrong=entries.filter(e=>!e.ok).map(e=>[e.typed,e.expected]);
-  result({[cat]:entries.length},wrong,mode==='testing'?secs:null);
+  result({[cat]:entries.length},wrong,mode==='testing'?secs:null,{mode:mode,category:cat,method:method,count:entries.length,details:JSON.stringify(entries.map(e=>({typed:e.typed,expected:e.expected,ok:e.ok})))});
 }
 
-function result(counts,wrong,time){
+function result(counts,wrong,time,meta){
   W=wrong;listText='';
   show('result');
   $('res-head').textContent='நீங்கள் எழுதிய ரிசல்ட்'+(time!==null?' - நேரம்: '+time+' வினாடிகள்':'');
   $('res-counts').textContent='நீங்கள் மொத்தமாக எழுதியவை:\n'+Object.keys(counts).map(k=>`${CATN[k]}: ${counts[k]}`).join('\n');
   $('res-mist').textContent='நீங்கள் தவறு செய்த வார்த்தைகளின் எண்ணிக்கை: '+wrong.length;
   $('res-list').classList.add('hidden');$('read-btn').classList.add('hidden');
+  if(meta&&student)api('/api/save_result',{student:student,mode:meta.mode,category:meta.category,method:meta.method,count:meta.count,seconds:time,mistakes:wrong,details:meta.details}).catch(()=>{});
 }
 async function showList(){
   if(!W.length){listText='தவறுகள் எதுவும் இல்லை. வாழ்த்துகள்!'}
@@ -389,7 +391,7 @@ function runCmd(c,arg,b){
 }
 function toToolbar(){const f=$('tb').querySelector('button[tabindex="0"]')||$('tb').firstChild;f.focus()}
 ed.addEventListener('keydown',e=>{
-  if(e.ctrlKey&&e.shiftKey&&e.altKey){e.preventDefault();openFmt();return}
+  if((e.key==='Alt'&&e.shiftKey)||(e.key==='Shift'&&e.altKey)){e.preventDefault();openFmt();return}
   if(e.key==='F6'){e.preventDefault();toToolbar();return}
   if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();submitEd()}
 });
@@ -456,7 +458,7 @@ async function submitEd(){
     Line:t.split('\n').filter(x=>x.trim()).length,
     Stanza:blocks.filter(b=>b.trim().split('\n').length>1).length,
     Paragraph:blocks.length
-  },wrong,null);
+  },wrong,null,{mode:'manual_writing',category:'Editor',method:'editor',count:t.split(/\s+/).length,details:t});
 }
 
 /* ---------- Voices ---------- */
