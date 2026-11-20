@@ -6,6 +6,7 @@ import difflib
 import random
 import unicodedata
 import hmac
+from werkzeug.security import generate_password_hash, check_password_hash
 from collections import Counter
 from datetime import timedelta
 from flask import Flask, request, jsonify, send_from_directory, Response, session, render_template_string
@@ -83,12 +84,20 @@ def db():
     return psycopg2.connect(DATABASE_URL)
 
 
+def db_problem():
+    if psycopg2 is None:
+        return "psycopg2 நிறுவப்படவில்லை. requirements.txt-ல் psycopg2-binary என்ற வரியை சேர்த்து மறுபடி டெப்ளாய் செய்யவும்."
+    if not DATABASE_URL:
+        return "DATABASE_URL கிடைக்கவில்லை. ரெண்டர் Environment-ல் பெயர் சரியாக DATABASE_URL என்று உள்ளதா, மதிப்பு உள்ளதா என சரிபார்க்கவும்."
+    return "டேட்டாபேஸ் இணைக்கப்படவில்லை."
+
+
 def init_db():
     conn = None
     try:
         conn = db()
         if not conn:
-            print("DATABASE_URL இல்லை: முடிவுகள் சேமிக்கப்படாது.")
+            print(db_problem(), "முடிவுகள் சேமிக்கப்படாது.")
             return
         with conn, conn.cursor() as cur:
             cur.execute("""CREATE TABLE IF NOT EXISTS results (
@@ -101,6 +110,16 @@ def init_db():
                 id SERIAL PRIMARY KEY, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 name TEXT, role TEXT, level TEXT, detail TEXT, sid TEXT)""")
             cur.execute("ALTER TABLE results ADD COLUMN IF NOT EXISTS sid TEXT")
+            cur.execute("ALTER TABLE results ADD COLUMN IF NOT EXISTS region TEXT")
+            cur.execute("ALTER TABLE results ADD COLUMN IF NOT EXISTS words INT")
+            cur.execute("ALTER TABLE logins ADD COLUMN IF NOT EXISTS region TEXT")
+            cur.execute("""CREATE TABLE IF NOT EXISTS teachers (
+                id SERIAL PRIMARY KEY, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, first_name TEXT, last_name TEXT,
+                subject TEXT, region TEXT, username TEXT, email TEXT, password_hash TEXT)""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS teacher_logins (
+                id SERIAL PRIMARY KEY, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, teacher_id INT,
+                name TEXT, username TEXT, region TEXT)""")
+            cur.execute("CREATE TABLE IF NOT EXISTS examples (word TEXT PRIMARY KEY, sentence TEXT)")
     except Exception as e:
         print("Database Initialization Error:", e)
     finally:
@@ -149,6 +168,8 @@ def add_used(category, items):
 def save_result():
     d = request.get_json(silent=True) or {}
     st = d.get('student') or {}
+    if st.get('role') == 'teacher':
+        return jsonify({"saved": False})
     mistakes = d.get('mistakes') or []
     conn = None
     try:
@@ -158,11 +179,12 @@ def save_result():
         with conn, conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO results (name, role, level, detail, mode, category, method, item_count,
-                   seconds, mistakes_count, mistakes, details, sid) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                   seconds, mistakes_count, mistakes, details, sid, region, words) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (str(st.get('name', ''))[:200], str(st.get('role', ''))[:30], str(st.get('level', ''))[:30],
                  str(st.get('detail', ''))[:200], str(d.get('mode', ''))[:30], str(d.get('category', ''))[:30],
                  str(d.get('method', ''))[:30], d.get('count'), d.get('seconds'), len(mistakes),
-                 json.dumps(mistakes, ensure_ascii=False)[:20000], str(d.get('details', ''))[:20000], str(st.get('sid', ''))[:60]))
+                 '[]', '', str(st.get('sid', ''))[:60], str(st.get('region', ''))[:80],
+                 d.get('words') if isinstance(d.get('words'), int) else None))
         return jsonify({"saved": True})
     except Exception as e:
         print("save_result பிழை:", e)
@@ -213,7 +235,7 @@ def load_people():
         k = pkey(r['name'], r['role'], r['level'], r['detail'])
         if k not in people:
             people[k] = {'key': k, 'name': (r['name'] or '').strip(), 'role': (r['role'] or '').lower(),
-                         'level': (r['level'] or '').lower(), 'detail': (r['detail'] or '').strip(),
+                         'level': (r['level'] or '').lower(), 'detail': (r['detail'] or '').strip(), 'region': (r['region'] or '').strip(),
                          'sids': set(), 'modes': Counter(), 'methods': Counter(), 'items': 0, 'words': 0,
                          'mistakes': 0, 'seconds': 0, 'sessions': 0, 'first': None, 'last': None, 'days': {}}
         return people[k]
@@ -235,7 +257,7 @@ def load_people():
         p['sessions'] += 1
         p['modes'][r['mode']] += 1
         p['methods'][r['method']] += 1
-        p['words'] += words_in(r['details'], r['method'])
+        p['words'] += r['words'] if r['words'] is not None else words_in(r['details'], r['method'])
         p['mistakes'] += r['mistakes_count'] or 0
         if r['method'] != 'editor':
             p['items'] += r['item_count'] or 0
@@ -266,7 +288,7 @@ def load_people():
 
 def person_text(p):
     days = "\n".join(f"  {d['date']} ({d['logins']} login): " + "; ".join(d['lines']) for d in p['days'])
-    return (f"Name: {p['name']} | {p['role_label']} | {p['level_label']} | {p['detail_label']}: {p['detail']}\n"
+    return (f"Name: {p['name']} | {p['role_label']} | {p['level_label']} | {p['detail_label']}: {p['detail']} | Region: {p['region']}\n"
             f"Logged in {p['visits']} time(s); first {p['first']}, last {p['last']}; practice sessions {p['sessions']}\n"
             f"Modes: {', '.join(p['mode_lines']) or 'none'}\nWriting methods: {', '.join(p['method_lines']) or 'none'}\n"
             f"Total words written {p['words']}; items {p['items']}; spelling mistakes (words) {p['mistakes']}; "
@@ -322,7 +344,7 @@ def view_results():
         if action in ('delete_one', 'delete_all', 'delete_time'):
             conn = db()
             if not conn:
-                return "டேட்டாபேஸ் இணைக்கப்படவில்லை. DATABASE_URL-ஐ சரிபார்க்கவும்.", 500
+                return db_problem(), 500
             try:
                 with conn, conn.cursor() as cur:
                     for table in ('results', 'logins'):
@@ -344,11 +366,11 @@ def view_results():
                 conn.close()
         people = load_people()
         if people is None:
-            return "டேட்டாபேஸ் இணைக்கப்படவில்லை. DATABASE_URL-ஐ சரிபார்க்கவும்.", 500
+            return db_problem(), 500
         search = request.form.get('search', '').strip().lower()
         if search:
             people = [p for p in people if search in (p['name'] + ' ' + p['detail'] + ' ' + p['role_label'] + ' ' + p['level_label']).lower()]
-        return render_template_string(html, logged_in=True, error="", people=people, search=search)
+        return render_template_string(html, logged_in=True, error="", people=people, search=search, teacher_logins=load_teacher_logins())
     except Exception as e:
         print("Admin Page Error:", e)
         return f"Database Error: {e}", 500
@@ -357,19 +379,184 @@ def view_results():
 @app.route('/api/log_login', methods=['POST'])
 def log_login():
     st = (request.get_json(silent=True) or {}).get('student') or {}
+    if st.get('role') == 'teacher':
+        return jsonify({"saved": False})
     conn = None
     try:
         conn = db()
         if not conn:
             return jsonify({"saved": False})
         with conn, conn.cursor() as cur:
-            cur.execute("INSERT INTO logins (name, role, level, detail, sid) VALUES (%s,%s,%s,%s,%s)",
+            cur.execute("INSERT INTO logins (name, role, level, detail, sid, region) VALUES (%s,%s,%s,%s,%s,%s)",
                         (str(st.get('name', ''))[:200], str(st.get('role', ''))[:30], str(st.get('level', ''))[:30],
-                         str(st.get('detail', ''))[:200], str(st.get('sid', ''))[:60]))
+                         str(st.get('detail', ''))[:200], str(st.get('sid', ''))[:60], str(st.get('region', ''))[:80]))
         return jsonify({"saved": True})
     except Exception as e:
         print("log_login பிழை:", e)
         return jsonify({"saved": False}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# ---------- Teachers, examples ----------
+TEACHER_CODE = os.environ.get("TEACHER_PASSWORD", "")
+USER_RE = re.compile(r'^[A-Za-z0-9_-]{3,30}$')
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+def bad(msg):
+    return jsonify({"ok": False, "message": msg})
+
+
+@app.route('/api/teacher/register', methods=['POST'])
+def teacher_register():
+    d = request.get_json(silent=True) or {}
+    first, last, subject, region = (str(d.get(k, '')).strip()[:80] for k in ('first', 'last', 'subject', 'region'))
+    username = str(d.get('username', '')).strip()
+    email = str(d.get('email', '')).strip().lower()[:120]
+    password = str(d.get('password', ''))
+    code = str(d.get('code', ''))
+    if not TEACHER_CODE:
+        return bad("ஆசிரியர் குறியீடு சர்வரில் இன்னும் அமைக்கப்படவில்லை.")
+    if not hmac.compare_digest(code, TEACHER_CODE):
+        return bad("ஆசிரியர் குறியீடு தவறு.")
+    if not (first and last and subject and region):
+        return bad("எல்லா பெட்டிகளையும் நிரப்புங்கள்.")
+    if not USER_RE.match(username):
+        return bad("பயனர் பெயரில் பெரிய எழுத்து, சின்ன எழுத்து, எண், கோடு, அடிக்கோடு மட்டும் இருக்கலாம். இடைவெளி கூடாது. மூன்று முதல் முப்பது எழுத்துகள்.")
+    if not EMAIL_RE.match(email):
+        return bad("சரியான மின்னஞ்சல் முகவரியை எழுதுங்கள்.")
+    if len(password) < 4:
+        return bad("பாஸ்வேர்டு குறைந்தது நான்கு எழுத்துகள் இருக்க வேண்டும்.")
+    conn = None
+    try:
+        conn = db()
+        if not conn:
+            return bad(db_problem())
+        with conn, conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM teachers WHERE lower(username)=%s", (username.lower(),))
+            if cur.fetchone():
+                return bad("இந்த பயனர் பெயர் ஏற்கனவே எடுக்கப்பட்டுள்ளது. வேறு ஒன்றை தேர்ந்தெடுங்கள்.")
+            cur.execute("SELECT 1 FROM teachers WHERE email=%s", (email,))
+            if cur.fetchone():
+                return bad("இந்த மின்னஞ்சலுக்கு ஏற்கனவே கணக்கு உள்ளது.")
+            cur.execute("""INSERT INTO teachers (first_name, last_name, subject, region, username, email, password_hash)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                        (first, last, subject, region, username, email, generate_password_hash(password)))
+        return jsonify({"ok": True})
+    except Exception as e:
+        print("teacher_register பிழை:", e)
+        return bad("கணக்கு உருவாக்க முடியவில்லை.")
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/teacher/login', methods=['POST'])
+def teacher_login():
+    d = request.get_json(silent=True) or {}
+    ident = str(d.get('id', '')).strip().lower()
+    password = str(d.get('password', ''))
+    conn = None
+    try:
+        conn = db()
+        if not conn:
+            return bad(db_problem())
+        with conn, conn.cursor() as cur:
+            cur.execute("""SELECT id, first_name, last_name, region, username, password_hash FROM teachers
+                           WHERE lower(username)=%s OR email=%s""", (ident, ident))
+            row = cur.fetchone()
+            if not row or not check_password_hash(row[5], password):
+                return bad("பயனர் பெயர் அல்லது பாஸ்வேர்டு தவறு.")
+            name = f"{row[1]} {row[2]}"
+            session['teacher'] = {'id': row[0], 'region': row[3], 'name': name}
+            cur.execute("INSERT INTO teacher_logins (teacher_id, name, username, region) VALUES (%s,%s,%s,%s)",
+                        (row[0], name, row[4], row[3]))
+            cur.execute("DELETE FROM teacher_logins WHERE created_at < NOW() - INTERVAL '30 days'")
+        return jsonify({"ok": True, "name": name, "region": row[3]})
+    except Exception as e:
+        print("teacher_login பிழை:", e)
+        return bad("லாகின் செய்ய முடியவில்லை.")
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/teacher/logout', methods=['POST'])
+def teacher_logout():
+    session.pop('teacher', None)
+    return jsonify({"ok": True})
+
+
+@app.route('/api/teacher/results', methods=['POST'])
+def teacher_results():
+    t = session.get('teacher')
+    if not t:
+        return jsonify({"error": "login"}), 401
+    cls = str((request.get_json(silent=True) or {}).get('cls', '')).strip().lower()
+    people = load_people() or []
+    rows = [p for p in people if p['role'] == 'student' and p['detail'].lower() == cls
+            and p['region'].lower() == (t['region'] or '').lower()]
+    rows.sort(key=lambda p: p['name'].lower())
+    return jsonify({"region": t['region'], "cls": cls,
+                    "students": [{"name": p['name'], "text": person_text(p)} for p in rows]})
+
+
+@app.route('/api/example', methods=['POST'])
+def example():
+    word = str((request.get_json(silent=True) or {}).get('word', '')).strip()[:60]
+    if not word:
+        return jsonify({"sentence": ""})
+    conn = None
+    try:
+        conn = db()
+        if conn:
+            with conn, conn.cursor() as cur:
+                cur.execute("SELECT sentence FROM examples WHERE word=%s", (word,))
+                row = cur.fetchone()
+                if row:
+                    return jsonify({"sentence": row[0]})
+    except Exception as e:
+        print("example படிக்க பிழை:", e)
+    finally:
+        if conn:
+            conn.close()
+    try:
+        prompt = (f'Write ONE short, simple Tamil sentence (6 to 10 words) that clearly shows the meaning of the Tamil word "{word}", '
+                  "suitable for a school student. Return only the sentence, nothing else.")
+        sentence = (ask_gemini(prompt).splitlines() or [''])[0].replace('*', '').strip()
+    except Exception as e:
+        print("example Gemini பிழை:", e)
+        return jsonify({"sentence": ""}), 500
+    conn = None
+    try:
+        conn = db()
+        if conn and sentence:
+            with conn, conn.cursor() as cur:
+                cur.execute("INSERT INTO examples (word, sentence) VALUES (%s,%s) ON CONFLICT (word) DO NOTHING", (word, sentence))
+    except Exception as e:
+        print("example சேமிக்க பிழை:", e)
+    finally:
+        if conn:
+            conn.close()
+    return jsonify({"sentence": sentence})
+
+
+def load_teacher_logins():
+    conn = None
+    try:
+        conn = db()
+        if not conn:
+            return []
+        with conn, conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("SELECT * FROM teacher_logins ORDER BY created_at DESC LIMIT 300")
+            rows = cur.fetchall()
+        return [{'name': r['name'], 'username': r['username'], 'region': r['region'],
+                 'when': ist(r['created_at']).strftime('%Y-%m-%d %H:%M')} for r in rows]
+    except Exception as e:
+        print("load_teacher_logins பிழை:", e)
+        return []
     finally:
         if conn:
             conn.close()
@@ -460,47 +647,55 @@ def generate_prompts():
     except (TypeError, ValueError):
         count = 1
 
-    used = get_used(category)
-    used_norm = {norm(x) for x in used}
-
     rules = {
         'Words': "single meaningful Tamil words (one word each, no spaces)",
         'Line': "single meaningful Tamil sentences, each ending with a dot (.)",
         'Stanza': "short Tamil poetic stanzas of exactly 3 lines each (separate lines with a newline)",
         'Paragraph': "short Tamil paragraphs of 3 or 4 sentences, each sentence ending with a dot (.)",
     }[category]
-    avoid = "; ".join(used[-30:]).replace("\n", " / ")
-    prompt = f"""Generate exactly {count + 8} different, new {rules} for a Tamil spelling practice app.
-Theme hint: {random.choice(TOPICS)}. Mix items that contain easily confused letters (ண ன ந, ல ள ழ, ர ற).
+    mix = {
+        'Words': "Mix the lengths: some words of 2 to 3 letters, some of 4, 5, 6 and 7 letters, and some long words of 8 or more letters.",
+        'Line': "Mix short sentences of about 4 words and longer sentences of 10 or more words.",
+        'Stanza': "Vary the topics and the rhythm.",
+        'Paragraph': "Vary the topics and the length.",
+    }[category]
+
+    recent = get_used(category)[-40:]      # only a soft hint, repeats across sessions are allowed
+    taken = set()                          # nothing repeats inside this one session
+    items = []
+    attempts = 0
+    while len(items) < count and attempts < 6:
+        attempts += 1
+        need = min(count - len(items) + 6, 40)
+        avoid = "; ".join(recent + items[-40:]).replace("\n", " / ")
+        prompt = f"""Generate exactly {need} different, new {rules} for a Tamil spelling practice app.
+Theme hint: {random.choice(TOPICS)}. {mix}
+Include items with easily confused letters (ண ன ந, ல ள ழ, ர ற).
 Do NOT use any of these already used items: {avoid or 'none'}.
 Return ONLY the Tamil items separated by '|||'. No numbering, no markdown, no English."""
-
-    items, chosen = [], set()
-    try:
-        for it in ask_gemini(prompt).split('|||'):
+        try:
+            raw = ask_gemini(prompt)
+        except Exception as e:
+            print("generate_prompts பிழை:", e)
+            break
+        for it in raw.split('|||'):
             it = re.sub(r'^\s*(\d+[.)]|[-*•])\s*', '', it.replace('*', '').replace('`', '')).strip()
             k = norm(it)
-            if it and k not in used_norm and k not in chosen:
+            if it and k not in taken and len(items) < count:
                 items.append(it)
-                chosen.add(k)
-    except Exception as e:
-        print("generate_prompts பிழை:", e)
+                taken.add(k)
 
-    items = items[:count]
-    chosen = {norm(x) for x in items}
-    pool = FALLBACK[category][:]
-    random.shuffle(pool)
-    for it in pool:
-        if len(items) >= count:
-            break
-        if norm(it) not in used_norm and norm(it) not in chosen:
-            items.append(it)
-            chosen.add(norm(it))
-    k = 0
-    while len(items) < count:
-        items.append(pool[k % len(pool)])
-        k += 1
+    if len(items) < count:                 # Gemini gave too few: fill only with unused built-in items
+        pool = FALLBACK[category][:]
+        random.shuffle(pool)
+        for it in pool:
+            if len(items) >= count:
+                break
+            if norm(it) not in taken:
+                items.append(it)
+                taken.add(norm(it))
 
+    random.shuffle(items)
     add_used(category, items)
     return jsonify({"status": "success", "items": items})
 
@@ -519,20 +714,61 @@ Otherwise reply with ONLY the corrected text, nothing else."""
 
 
 # ---------- Check a long text (Manual Writing editor) ----------
+LETTER_GROUPS = {'ண': 1, 'ன': 1, 'ந': 1, 'ல': 2, 'ள': 2, 'ழ': 2, 'ர': 3, 'ற': 3}
+GROUP_NAMES = {1: 'ண ன ந', 2: 'ல ள ழ', 3: 'ர ற'}
+
+
+def split_sentences(text):
+    parts = re.split(r'(?<=[.!?])\s+|\n+', text)
+    return [p.strip() for p in parts if p.strip()]
+
+
 @app.route('/api/check_text', methods=['POST'])
 def check_text():
-    text = (request.get_json(silent=True) or {}).get('text', '')
-    prompt = f"""You are an expert Tamil grammar and spelling checker.
-Find every misspelt word in this Tamil text, especially மயங்கொலி mistakes (ண/ன/ந, ல/ள/ழ, ர/ற) and grammar slips:
-\"\"\"{text}\"\"\"
-Return ONLY a JSON array like [{{"wrong":"வனக்கம்","correct":"வணக்கம்"}}]. Use [] if there are no mistakes.
-Each item must be a single word. No markdown."""
-    raw = ask_gemini(prompt)
-    raw = re.sub(r"```(?:json)?", "", raw).strip()
-    mistakes = json.loads(raw)
-    clean = [{"wrong": m["wrong"], "correct": m["correct"]} for m in mistakes
-             if isinstance(m, dict) and m.get("wrong") and m.get("correct") and m["wrong"] != m["correct"]]
-    return jsonify({"mistakes": clean})
+    text = str((request.get_json(silent=True) or {}).get('text', ''))[:20000]
+    sents = split_sentences(text)
+    total_words = len(text.split())
+    numbered = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(sents))
+    prompt = f"""You are an expert Tamil spelling and grammar checker.
+Below are numbered Tamil sentences. Find every misspelt word, especially மயங்கொலி mistakes (ண/ன/ந, ல/ள/ழ, ர/ற).
+Return ONLY a JSON array like [{{"i":1,"wrong":"வனக்கம்","correct":"வணக்கம்"}}] where i is the sentence number.
+Each item must be a single word. Use [] if there are no mistakes. No markdown.
+
+{numbered}"""
+    raw = re.sub(r"```(?:json)?", "", ask_gemini(prompt)).strip()
+    found = json.loads(raw)
+
+    per = [[] for _ in sents]
+    pairs = []
+    for m in found:
+        try:
+            i = int(m.get('i')) - 1
+            w, c = str(m['wrong']).strip(), str(m['correct']).strip()
+        except Exception:
+            continue
+        if not w or not c or w == c or not (0 <= i < len(sents)):
+            continue
+        per[i].append({"wrong": w, "correct": c, "explain": explain_pair(w, c)})
+        pairs.append((w, c))
+
+    by_group, by_pair = Counter(), Counter()
+    for w, c in pairs:
+        for tag, a1, a2, b1, b2 in difflib.SequenceMatcher(None, w, c).get_opcodes():
+            if tag == 'replace' and a2 - a1 == 1 and b2 - b1 == 1:
+                x, y = w[a1], c[b1]
+                if LETTER_GROUPS.get(x) and LETTER_GROUPS.get(x) == LETTER_GROUPS.get(y):
+                    by_group[LETTER_GROUPS[x]] += 1
+                    by_pair[f"{letter_name(x)} போட்டுள்ளீர்கள், {letter_name(y)} போட வேண்டும்"] += 1
+
+    wrong_words = len(pairs)
+    return jsonify({
+        "total_words": total_words, "wrong_words": wrong_words,
+        "correct_words": max(total_words - wrong_words, 0),
+        "groups": [f"{GROUP_NAMES[g]} எழுத்துகளில் {n} தவறு" for g, n in by_group.most_common()],
+        "top_pairs": [f"{k}: {n} முறை" for k, n in by_pair.most_common(5)],
+        "sentences": [{"text": s, "mistakes": per[i]} for i, s in enumerate(sents)],
+        "mistakes": [[w, c] for w, c in pairs],
+    })
 
 
 # ---------- Explain mistakes (no Gemini, instant) ----------
