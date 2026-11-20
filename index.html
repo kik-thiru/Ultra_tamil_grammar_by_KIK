@@ -39,6 +39,7 @@ textarea.box{resize:none}
 .sel{width:95%;padding:12px;margin:6px 0;background:#fff;color:#000;font-size:18px;border:2px solid #ffeb3b;border-radius:5px;box-sizing:border-box}
 .lnk{background:none;border:none;font-size:19px;text-decoration:underline;cursor:pointer;font-family:inherit;padding:6px}
 .lnk-green{color:#00e676}.lnk-blue{color:#4fc3f7}
+::highlight(rej),::highlight(wrongw){text-decoration:underline wavy red}
 </style>
 </head>
 <body>
@@ -107,6 +108,7 @@ textarea.box{resize:none}
 <button class="btn-yellow" onclick="pickMode('learning')">Learning Mode</button>
 <button class="btn-yellow" onclick="pickMode('testing')">Testing Mode</button>
 <button class="btn-yellow" onclick="openEditor()">Manual Writing</button>
+<button class="btn-yellow" onclick="openDict()">Dictation</button>
 <button class="btn-yellow" onclick="exitApp()">Exit</button>
 </div>
 
@@ -146,6 +148,28 @@ textarea.box{resize:none}
 <button class="btn-yellow" onclick="goBack()">Back</button>
 </div>
 
+<div id="s-dict" class="group hidden">
+<h2 tabindex="-1">Dictation</h2>
+<fieldset class="fs" role="radiogroup"><legend>Mode</legend>
+<label><input type="radio" name="dmode" value="learning" checked> Learning mode</label>
+<label><input type="radio" name="dmode" value="testing"> Testing mode</label>
+</fieldset>
+<label for="d-cat">Category</label><select id="d-cat" class="sel" onchange="fillEx()"></select>
+<label for="d-ex">Exercise</label><select id="d-ex" class="sel"></select>
+<button class="btn-yellow" onclick="dictStart()">Start</button>
+<button class="btn-yellow" onclick="show('home')">Back</button>
+</div>
+
+<div id="s-dprac" class="group hidden">
+<h2 tabindex="-1" id="dp-title">Dictation</h2>
+<p id="dp-count" style="margin:0;font-size:18px;color:#ffeb3b"></p>
+<div style="font-size:18px">நேரம்: <span id="dp-time">0</span> வினாடிகள்</div>
+<input class="fx" id="dp-inp" type="text" autocomplete="off" aria-label="கேட்ட வார்த்தையை எழுதவும்">
+<p style="margin:0;color:#ffeb3b;font-size:15px">Enter = சமர்ப்பிக்க. Ctrl+Shift+R = மீண்டும் கேட்க. Ctrl+Shift+E = உதாரணம்.</p>
+<p id="dp-msg" style="font-size:19px;margin:6px 0"></p>
+<div class="row"><button class="btn-yellow" onclick="dictSubmit()">Entry</button><button class="btn-yellow" onclick="dictRepeat()">Repeat</button><button class="btn-yellow" onclick="goBack()">Back</button></div>
+</div>
+
 <div id="s-fix" class="group hidden">
 <h2 tabindex="-1">நீங்கள் எழுதியது தவறு</h2>
 <p id="fix-word" style="font-size:20px"></p>
@@ -174,6 +198,7 @@ textarea.box{resize:none}
 <div class="row">
 <button class="btn-yellow" onclick="showList()">Show as a List</button>
 <button class="btn-yellow hidden" id="read-btn" onclick="speak(listText,'ta')">Read Aloud</button>
+<button class="btn-yellow" onclick="goBack()">Back</button>
 <button class="btn-yellow" onclick="show('home')">Home</button>
 </div>
 </div>
@@ -203,17 +228,17 @@ textarea.box{resize:none}
 
 <script>
 const $=id=>document.getElementById(id);
-const SC=['login','tlogin','treg','thome','tres','home','cat','method','count','practice','fix','editor','result'];
-const BACK={cat:'home',method:'cat',count:'method',editor:'home',result:'home',practice:'count',tlogin:'login',treg:'tlogin',tres:'thome',thome:'login'};
+const SC=['login','tlogin','treg','thome','tres','home','dict','dprac','cat','method','count','practice','fix','editor','result'];
+const BACK={cat:'home',method:'cat',count:'method',editor:'home',result:'home',practice:'count',tlogin:'login',treg:'tlogin',tres:'thome',thome:'login',dict:'home',dprac:'dict'};
 const CATN={Words:'வார்த்தைகள்',Line:'வரிகள்',Stanza:'ஸ்டான்ஸாக்கள்',Paragraph:'பாராக்கள்'};
-let edData=null,lastNav=0,done=false,mode,cat,method,limit,items=[],idx=0,entries=[],secs=0,timer=null,cur='home',fixTarget='',W=[],listText='',audio=null,saved=null;
+let listReady=false,edWrong=[],edBack=false,rejMap={},edData=null,lastNav=0,done=false,mode,cat,method,limit,items=[],idx=0,entries=[],secs=0,timer=null,cur='home',fixTarget='',W=[],listText='',audio=null,saved=null;
 const api=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
 const say=m=>{$('status').textContent='';setTimeout(()=>$('status').textContent=m,50)};
 const n=s=>(s||'').normalize('NFC').replace(/[\u200b-\u200d\ufeff\s]/g,'').replace(/[.,!?;:'"“”‘’]+$/,'');
 
 function show(id){
   lastNav=Date.now();
-  if(id!=='practice'&&id!=='fix')clearInterval(timer);
+  if(id!=='practice'&&id!=='fix'&&id!=='dprac')clearInterval(timer);
   SC.forEach(s=>$('s-'+s).classList.add('hidden'));
   const el=$('s-'+id);el.classList.remove('hidden');cur=id;
   document.body.classList.toggle('full',id==='result');
@@ -298,8 +323,9 @@ function teacherLogout(){
 }
 function canBack(){return cur==='home'?!!(teacher&&student&&student.role==='teacher'):!!BACK[cur]}
 function goBack(){
-  if(cur==='practice'&&!confirm('பயிற்சியை நிறுத்தி பின்னால் செல்லவா?'))return;
+  if((cur==='practice'||cur==='dprac')&&!confirm('பயிற்சியை நிறுத்தி பின்னால் செல்லவா?'))return;
   if(cur==='home'){showThome();return}
+  if(cur==='result'&&edBack){edBack=false;show('editor');markWords(edWrong,'wrongw');ed.focus();return}
   show(BACK[cur]);
 }
 [['s-login','doLogin'],['s-tlogin','teacherLogin'],['s-treg','teacherRegister']].forEach(([box,fn])=>{
@@ -329,7 +355,7 @@ async function start(){
   $('hint').textContent=h;
   label();show('practice');$('inp').focus();
   if(mode==='testing'){const t0=Date.now();timer=setInterval(()=>{secs=Math.floor((Date.now()-t0)/1000);$('time').textContent=secs},1000)}
-  if(method==='hearing')speak(items[0],'ta');
+  if(method==='hearing'){speak(items[0],'ta');if(items[1])prefetch(items[1])}
 }
 function label(){$('instr').textContent=`உள்ளீடு ${idx+1} / ${limit}: `+(method==='hearing'?'கவனமாகக் கேட்டு எழுதவும்':'நீங்களே எழுதவும்')}
 
@@ -354,7 +380,7 @@ async function submit(){
   entries.push(e);
   if(method==='hearing'){e.ok=n(t)===n(e.expected)}
   else{
-    const p=api('/api/check_word',{text:t}).then(d=>{e.ok=d.ok;e.expected=d.correct||t}).catch(()=>{e.ok=true;e.expected=t});
+    const p=api('/api/check_word',{text:t,cat:cat}).then(d=>{e.ok=d.ok;e.expected=d.correct||t}).catch(()=>{e.ok=true;e.expected=t});
     if(mode==='learning'){say('சரிபார்க்கிறது...');await p}else e.p=p;
   }
   if(!e.ok&&mode==='learning'){openFix(e.expected,e.typed);return}
@@ -364,7 +390,7 @@ function next(){
   idx++;
   if(idx>=limit){finish();return}
   label();show('practice');$('inp').focus();
-  if(method==='hearing')speak(items[idx],'ta');
+  if(method==='hearing'){speak(items[idx],'ta');if(items[idx+1])prefetch(items[idx+1])}
 }
 
 function openFix(c,typed){
@@ -397,7 +423,7 @@ async function finish(){
 }
 
 function result(counts,wrong,time,meta){
-  W=wrong;listText='';edData=null;
+  W=wrong;listText='';edData=null;edBack=false;listReady=false;
   show('result');
   $('res-head').textContent='நீங்கள் எழுதிய ரிசல்ட்'+(time!==null?' - நேரம்: '+time+' வினாடிகள்':'');
   $('res-counts').textContent='நீங்கள் மொத்தமாக எழுதியவை:\n'+Object.keys(counts).map(k=>`${CATN[k]}: ${counts[k]}`).join('\n');
@@ -406,6 +432,7 @@ function result(counts,wrong,time,meta){
   if(meta&&student&&student.role==='student')api('/api/save_result',{student:student,mode:meta.mode,category:meta.category,method:meta.method,count:meta.count,seconds:time,mistakes:wrong,words:meta.words}).catch(()=>{});
 }
 async function showList(){
+  if(listReady){$('res-list').textContent=listText;$('res-list').classList.remove('hidden');$('read-btn').classList.remove('hidden');$('res-list').focus();return}
   if(edData){renderSentences();return}
   if(!W.length){listText='தவறுகள் எதுவும் இல்லை. வாழ்த்துகள்!'}
   else{
@@ -540,8 +567,24 @@ $('fmt').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();
 function openEditor(){
   ed.innerHTML='';ed.style.columnCount=1;closeSub(false);
   $('tb').querySelectorAll('[aria-pressed]').forEach(b=>b.setAttribute('aria-pressed','false'));
+  edWrong=[];if(window.CSS&&CSS.highlights)CSS.highlights.delete('wrongw');
   show('editor');ed.focus();
+  fetch('/api/rejected').then(r=>r.json()).then(l=>{rejMap={};l.forEach(x=>rejMap[x.rejected.normalize('NFC')]=x);markWords(Object.keys(rejMap),'rej')}).catch(()=>{});
 }
+let rejT;
+function markWords(list,name){
+  if(!window.CSS||!CSS.highlights||typeof Highlight==='undefined')return;
+  const set=new Set(list.map(x=>x.normalize('NFC'))),ranges=[],walker=document.createTreeWalker(ed,NodeFilter.SHOW_TEXT);
+  let nd;
+  while(nd=walker.nextNode()){
+    const re=/[\u0B80-\u0BFFA-Za-z0-9]+/g;let m;
+    while(m=re.exec(nd.data)){
+      if(set.has(m[0].normalize('NFC'))){const r=new Range();r.setStart(nd,m.index);r.setEnd(nd,m.index+m[0].length);ranges.push(r)}
+    }
+  }
+  CSS.highlights.set(name,new Highlight(...ranges));
+}
+ed.addEventListener('input',()=>{clearTimeout(rejT);rejT=setTimeout(()=>markWords(Object.keys(rejMap),'rej'),300)});
 function renderSentences(){
   const box=$('res-list');box.innerHTML='';let plain='';
   edData.sentences.forEach((s,i)=>{
@@ -569,13 +612,90 @@ async function submitEd(){
     Stanza:blocks.filter(b=>b.trim().split('\n').length>1).length,
     Paragraph:blocks.length
   },d.mistakes,null,{mode:'manual_writing',category:'Editor',method:'editor',count:words,words:words});
-  edData=d;
+  edData=d;edWrong=d.mistakes.map(m=>m[0]);edBack=true;
   $('res-counts').textContent+='\n\nமொத்த வார்த்தைகள்: '+d.total_words+'\nசரியாக எழுதிய வார்த்தைகள்: '+d.correct_words+'\nதவறாக எழுதிய வார்த்தைகள்: '+d.wrong_words;
   $('res-mist').textContent='நீங்கள் பொதுவாக செய்த மயங்கொலி பிழைகள்:\n'+(d.groups.concat(d.top_pairs).join('\n')||'மயங்கொலி பிழைகள் எதுவும் இல்லை.');
 }
 
+let DICT=null,dc={};
+async function openDict(){
+  show('dict');
+  if(DICT)return;
+  try{DICT=await (await fetch('/api/dictation')).json()}catch(e){say('பயிற்சிகளை பெற முடியவில்லை');return}
+  $('d-cat').innerHTML=DICT.map((c,i)=>'<option value="'+i+'">'+(i+1)+'. '+c.name+'</option>').join('');
+  fillEx();
+}
+function fillEx(){
+  const c=DICT[$('d-cat').value];
+  $('d-ex').innerHTML=c.exercises.map((e,i)=>'<option value="'+i+'">'+e.name+' ('+e.words.length+' words)</option>').join('');
+}
+function dictStart(){
+  if(!DICT){say('பயிற்சிகள் இன்னும் வரவில்லை');return}
+  const c=DICT[$('d-cat').value],e=c.exercises[$('d-ex').value];
+  dc={mode:document.querySelector('input[name=dmode]:checked').value,cat:c.name,ex:e.name,words:e.words,idx:0,res:[],retry:false,t0:Date.now()};
+  $('dp-title').textContent=c.name+' - '+e.name;$('dp-msg').textContent='';$('dp-time').textContent=0;
+  e.words.slice(0,3).forEach(w=>prefetch(w));
+  show('dprac');
+  dictNext();
+  clearInterval(timer);
+  timer=setInterval(()=>{$('dp-time').textContent=Math.floor((Date.now()-dc.t0)/1000)},1000);
+}
+function dictNext(){
+  dc.retry=false;$('dp-inp').value='';
+  $('dp-count').textContent='வார்த்தை '+(dc.idx+1)+' / '+dc.words.length;
+  if(dc.words[dc.idx+1])prefetch(dc.words[dc.idx+1]);
+  speak(dc.words[dc.idx],'ta');$('dp-inp').focus();
+}
+function dictRepeat(){speak(dc.words[dc.idx],'ta');$('dp-inp').focus()}
+function dictAdvance(){
+  dc.idx++;
+  if(dc.idx>=dc.words.length)dictFinish();else dictNext();
+}
+function dictSubmit(){
+  const w=dc.words[dc.idx],t=$('dp-inp').value.trim();
+  if(!t){say('முதலில் எழுதுங்கள்');return}
+  const ok=n(t)===n(w);
+  if(!dc.retry)dc.res.push({w:w,typed:t,ok:ok});
+  if(ok||dc.mode==='testing'){$('dp-msg').textContent='';dictAdvance();return}
+  dc.retry=true;$('dp-inp').value='';
+  const letters=(w.normalize('NFC').match(/[\u0B80-\u0BFF][\u0BBE-\u0BCD\u0BD7]*/g)||[w]).join(', ');
+  const show1=txt=>{$('dp-msg').textContent=txt;speak(txt,'ta')};
+  api('/api/explain',{pairs:[[t,w]],header:false})
+    .then(d=>show1('நீங்கள் தவறாக எழுதியுள்ளீர்கள். '+d.text+' எழுத்துகள்: '+letters))
+    .catch(()=>show1('தவறு. சரியான வார்த்தை: '+w+'. எழுத்துகள்: '+letters));
+  $('dp-inp').focus();
+}
+function dictFinish(){
+  clearInterval(timer);
+  const secs=Math.floor((Date.now()-dc.t0)/1000),ok=dc.res.filter(r=>r.ok).length,bad=dc.res.length-ok;
+  const wrong=dc.res.filter(r=>!r.ok);
+  show('result');
+  $('res-head').textContent='நீங்கள் எழுதிய ரிசல்ட் - நேரம்: '+secs+' வினாடிகள்';
+  $('res-counts').textContent=dc.cat+' - '+dc.ex+'\nமொத்த வார்த்தைகள்: '+dc.res.length+'\nசரியாக எழுதியவை: '+ok;
+  $('res-mist').textContent='தவறாக எழுதிய வார்த்தைகளின் எண்ணிக்கை: '+bad;
+  listText=dc.res.map((r,i)=>(i+1)+'. '+r.w+' - '+(r.ok?'சரி':'தவறு. நீங்கள் எழுதியது: '+r.typed)).join('\n');
+  listReady=true;edData=null;edBack=false;W=[];
+  $('res-list').classList.add('hidden');$('read-btn').classList.add('hidden');
+  if(student&&student.role==='student')api('/api/save_result',{student:student,mode:'dictation_'+dc.mode,category:dc.cat,method:'dictation',
+    count:dc.res.length,seconds:secs,mistakes:wrong.map(r=>[r.typed,r.w]),words:dc.res.length,
+    note:dc.ex+(bad?' | wrong: '+wrong.map(r=>r.w).join(', '):'')}).catch(()=>{});
+}
+$('dp-inp').addEventListener('keydown',e=>{
+  if(e.ctrlKey&&e.shiftKey&&e.code==='KeyR'){e.preventDefault();dictRepeat();return}
+  if(e.ctrlKey&&e.shiftKey&&e.code==='KeyE'){e.preventDefault();exampleSpeak(dc.words[dc.idx]);return}
+  if(e.key==='Enter'){e.preventDefault();dictSubmit()}
+});
+
 /* ---------- Voices ---------- */
 if('speechSynthesis' in window)speechSynthesis.getVoices();
+const ttsCache={};
+function ttsGet(text,lang){
+  const k=lang+'|'+text;
+  if(!ttsCache[k])ttsCache[k]=fetch('/api/generate_tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,lang:lang})})
+    .then(r=>{if(!r.ok)throw 0;return r.blob()}).then(b=>URL.createObjectURL(b)).catch(e=>{delete ttsCache[k];throw e});
+  return ttsCache[k];
+}
+function prefetch(t){ttsGet(t,'ta').catch(()=>{})}
 function speak(text,lang){
   if(!text)return;
   if(audio){audio.pause()}
@@ -583,10 +703,7 @@ function speak(text,lang){
     const v=speechSynthesis.getVoices().find(v=>/David/i.test(v.name));
     if(v){const u=new SpeechSynthesisUtterance(text);u.voice=v;speechSynthesis.cancel();speechSynthesis.speak(u);return}
   }
-  fetch('/api/generate_tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,lang:lang})})
-    .then(r=>{if(!r.ok)throw 0;return r.blob()})
-    .then(b=>{audio=new Audio(URL.createObjectURL(b));audio.play()})
-    .catch(()=>say('ஆடியோ கிடைக்கவில்லை. இணைய இணைப்பை சரிபார்க்கவும்.'));
+  ttsGet(text,lang).then(u=>{audio=new Audio(u);audio.play()}).catch(()=>say('ஆடியோ கிடைக்கவில்லை. இணைய இணைப்பை சரிபார்க்கவும்.'));
 }
 function exampleSpeak(w){
   say('உதாரணம் தயாராகிறது...');
