@@ -6,6 +6,7 @@ import difflib
 import random
 import unicodedata
 import hmac
+import time
 from werkzeug.security import generate_password_hash, check_password_hash
 from collections import Counter
 from datetime import timedelta
@@ -120,6 +121,8 @@ def init_db():
                 id SERIAL PRIMARY KEY, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, teacher_id INT,
                 name TEXT, username TEXT, region TEXT)""")
             cur.execute("CREATE TABLE IF NOT EXISTS examples (word TEXT PRIMARY KEY, sentence TEXT)")
+            cur.execute("CREATE TABLE IF NOT EXISTS rejected_words (id SERIAL PRIMARY KEY, rejected TEXT UNIQUE, correct TEXT, meaning TEXT)")
+            cur.execute("INSERT INTO rejected_words (rejected, correct, meaning) VALUES ('நாழை','நாளை','நாளை என்றால் tomorrow') ON CONFLICT (rejected) DO NOTHING")
     except Exception as e:
         print("Database Initialization Error:", e)
     finally:
@@ -183,7 +186,7 @@ def save_result():
                 (str(st.get('name', ''))[:200], str(st.get('role', ''))[:30], str(st.get('level', ''))[:30],
                  str(st.get('detail', ''))[:200], str(d.get('mode', ''))[:30], str(d.get('category', ''))[:30],
                  str(d.get('method', ''))[:30], d.get('count'), d.get('seconds'), len(mistakes),
-                 '[]', '', str(st.get('sid', ''))[:60], str(st.get('region', ''))[:80],
+                 '[]', str(d.get('note', ''))[:500], str(st.get('sid', ''))[:60], str(st.get('region', ''))[:80],
                  d.get('words') if isinstance(d.get('words'), int) else None))
         return jsonify({"saved": True})
     except Exception as e:
@@ -195,8 +198,9 @@ def save_result():
 
 
 # ---------- Admin Results Page ----------
-MODE_L = {'learning': 'Learning Mode', 'testing': 'Testing Mode', 'manual_writing': 'Manual Writing'}
-METH_L = {'hearing': 'Hearing and Writing', 'manual': 'Self writing (Manual)', 'editor': 'Writing box (Manual Writing mode)'}
+MODE_L = {'learning': 'Learning Mode', 'testing': 'Testing Mode', 'manual_writing': 'Manual Writing',
+          'dictation_learning': 'Dictation (Learning)', 'dictation_testing': 'Dictation (Testing)'}
+METH_L = {'hearing': 'Hearing and Writing', 'manual': 'Self writing (Manual)', 'editor': 'Writing box (Manual Writing mode)', 'dictation': 'Dictation'}
 
 
 def ist(dt):
@@ -267,6 +271,8 @@ def load_people():
                 f"{METH_L.get(r['method'], r['method'])}, {r['item_count']} items, {r['mistakes_count']} mistakes")
         if r['seconds'] is not None:
             line += f", {r['seconds']} seconds"
+        if r['details']:
+            line += f" ({r['details']})"
         day['lines'].append(line)
 
     out = []
@@ -341,6 +347,8 @@ def view_results():
         return render_template_string(html, logged_in=False, error=error, people=[], search="")
     try:
         action = request.form.get('action')
+        if action in ('rej_add', 'rej_del'):
+            change_rejected(action, request.form)
         if action in ('delete_one', 'delete_all', 'delete_time'):
             conn = db()
             if not conn:
@@ -370,7 +378,7 @@ def view_results():
         search = request.form.get('search', '').strip().lower()
         if search:
             people = [p for p in people if search in (p['name'] + ' ' + p['detail'] + ' ' + p['role_label'] + ' ' + p['level_label']).lower()]
-        return render_template_string(html, logged_in=True, error="", people=people, search=search, teacher_logins=load_teacher_logins())
+        return render_template_string(html, logged_in=True, error="", people=people, search=search, teacher_logins=load_teacher_logins(), rejected=load_rejected())
     except Exception as e:
         print("Admin Page Error:", e)
         return f"Database Error: {e}", 500
@@ -397,6 +405,90 @@ def log_login():
     finally:
         if conn:
             conn.close()
+
+
+# ---------- Dictation data, rejected dictionary ----------
+_rej_cache = {"t": 0, "m": {}}
+
+
+def rejected_map():
+    if time.time() - _rej_cache["t"] < 30:
+        return _rej_cache["m"]
+    m, conn = {}, None
+    try:
+        conn = db()
+        if conn:
+            with conn, conn.cursor() as cur:
+                cur.execute("SELECT rejected, correct, meaning FROM rejected_words")
+                for r in cur.fetchall():
+                    m[unicodedata.normalize('NFC', r[0])] = {"correct": r[1], "meaning": r[2] or ''}
+    except Exception as e:
+        print("rejected_map பிழை:", e)
+    finally:
+        if conn:
+            conn.close()
+    _rej_cache.update(t=time.time(), m=m)
+    return m
+
+
+def apply_rejected_text(text):
+    m = rejected_map()
+    if not m:
+        return text
+    return re.sub(r'[\u0B80-\u0BFF]+', lambda mo: m[mo.group(0)]['correct'] if mo.group(0) in m else mo.group(0),
+                  unicodedata.normalize('NFC', text))
+
+
+def load_rejected():
+    conn = None
+    try:
+        conn = db()
+        if not conn:
+            return []
+        with conn, conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("SELECT * FROM rejected_words ORDER BY id DESC")
+            return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print("load_rejected பிழை:", e)
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+
+def change_rejected(action, form):
+    conn = None
+    try:
+        conn = db()
+        if not conn:
+            return
+        with conn, conn.cursor() as cur:
+            if action == 'rej_add':
+                a = unicodedata.normalize('NFC', form.get('rejected', '').strip())
+                b = form.get('correct', '').strip()
+                if a and b and a != b:
+                    cur.execute("""INSERT INTO rejected_words (rejected, correct, meaning) VALUES (%s,%s,%s)
+                                   ON CONFLICT (rejected) DO UPDATE SET correct=EXCLUDED.correct, meaning=EXCLUDED.meaning""",
+                                (a, b, form.get('meaning', '').strip()[:200]))
+            elif action == 'rej_del':
+                cur.execute("DELETE FROM rejected_words WHERE id=%s", (int(form.get('rid', 0)),))
+    except Exception as e:
+        print("change_rejected பிழை:", e)
+    finally:
+        if conn:
+            conn.close()
+        _rej_cache["t"] = 0
+
+
+@app.route('/api/rejected')
+def api_rejected():
+    return jsonify([{"rejected": k, "correct": v["correct"], "meaning": v["meaning"]} for k, v in rejected_map().items()])
+
+
+@app.route('/api/dictation')
+def dictation_data():
+    with open(os.path.join(BASE_DIR, 'exercises.json'), encoding='utf-8') as f:
+        return Response(f.read(), mimetype='application/json')
 
 
 # ---------- Teachers, examples ----------
@@ -570,6 +662,8 @@ BRAILLE = {
  'ல':'1 2 3','வ':'1 2 3 6','ழ':'1 2 3 5 6','ள':'4 5 6','ற':'1 2 4 5 6','ன':'5 6',
 }
 SUZHI = {'ண': 'மூன்று சுழி ண', 'ன': 'இரண்டு சுழி ன'}
+PUNCT = {'.': 'புள்ளி', ',': 'காற்புள்ளி', '?': 'வினாக்குறி', '!': 'வியப்புக்குறி', ';': 'அரைப்புள்ளி',
+         ':': 'முக்காற்புள்ளி', '"': 'மேற்கோள் குறி', "'": 'ஒற்றை மேற்கோள் குறி', '-': 'இடைக்கோடு', ' ': 'இடைவெளி'}
 
 
 def norm(s):
@@ -579,7 +673,7 @@ def norm(s):
 
 
 def letter_name(s):
-    return SUZHI.get(s, s) if len(s) == 1 else s
+    return PUNCT.get(s, SUZHI.get(s, s)) if len(s) == 1 else s
 
 
 def braille_text(s):
@@ -595,9 +689,9 @@ def explain_pair(wrong, correct):
             w, c = wrong[a1:a2], correct[b1:b2]
             parts.append(f"{letter_name(w)} போட்டுள்ளீர்கள், {letter_name(c)} போட வேண்டும்{braille_text(c)}")
         elif tag == 'delete':
-            parts.append(f"{wrong[a1:a2]} கூடுதலாக உள்ளது")
+            parts.append(f"{letter_name(wrong[a1:a2])} கூடுதலாக உள்ளது")
         elif tag == 'insert':
-            parts.append(f"{correct[b1:b2]} விடுபட்டுள்ளது{braille_text(correct[b1:b2])}")
+            parts.append(f"{letter_name(correct[b1:b2])} விடுபட்டுள்ளது{braille_text(correct[b1:b2])}")
     detail = "; ".join(parts) if parts else "எழுத்துப் பிழை"
     return f"{wrong}: {detail}. சரியான வார்த்தை: {correct}"
 
@@ -703,8 +797,13 @@ Return ONLY the Tamil items separated by '|||'. No numbering, no markdown, no En
 # ---------- Check one typed entry (self-writing) ----------
 @app.route('/api/check_word', methods=['POST'])
 def check_word():
-    text = (request.get_json(silent=True) or {}).get('text', '').strip()
-    prompt = f"""Check the Tamil spelling of this text: "{text}"
+    body = request.get_json(silent=True) or {}
+    text = body.get('text', '').strip()
+    fixed = apply_rejected_text(text)
+    if fixed != unicodedata.normalize('NFC', text):
+        return jsonify({"ok": False, "correct": fixed})
+    what = "spelling" if body.get('cat', 'Words') == 'Words' else "spelling and punctuation (full stops, commas, question marks, spacing)"
+    prompt = f"""Check the Tamil {what} of this text: "{text}"
 If it is completely correct, reply with exactly: சரி
 Otherwise reply with ONLY the corrected text, nothing else."""
     reply = (ask_gemini(prompt).strip().splitlines() or [''])[0].replace('*', '').replace('`', '').strip().strip('"“”')
@@ -732,6 +831,7 @@ def check_text():
     prompt = f"""You are an expert Tamil spelling and grammar checker.
 Below are numbered Tamil sentences. Find every misspelt word, especially மயங்கொலி mistakes (ண/ன/ந, ல/ள/ழ, ர/ற).
 Return ONLY a JSON array like [{{"i":1,"wrong":"வனக்கம்","correct":"வணக்கம்"}}] where i is the sentence number.
+Also report punctuation mistakes (missing or wrong full stop, comma, question mark, extra space before punctuation): for those, put the word with its punctuation as written in "wrong" and the corrected form in "correct".
 Each item must be a single word. Use [] if there are no mistakes. No markdown.
 
 {numbered}"""
@@ -750,6 +850,16 @@ Each item must be a single word. Use [] if there are no mistakes. No markdown.
             continue
         per[i].append({"wrong": w, "correct": c, "explain": explain_pair(w, c)})
         pairs.append((w, c))
+
+    rm = rejected_map()
+    for i, s in enumerate(sents):
+        for tok in re.findall(r'[\u0B80-\u0BFF]+', unicodedata.normalize('NFC', s)):
+            if tok in rm and not any(x['wrong'] == tok for x in per[i]):
+                c = rm[tok]['correct']
+                note = f". {rm[tok]['meaning']}" if rm[tok]['meaning'] else ""
+                per[i].append({"wrong": tok, "correct": c,
+                               "explain": f"{tok}: இங்கு இந்த வார்த்தை பொருந்தாது. சரியான வார்த்தை: {c}{note}"})
+                pairs.append((tok, c))
 
     by_group, by_pair = Counter(), Counter()
     for w, c in pairs:
