@@ -36,6 +36,9 @@ textarea.box{resize:none}
 .fs{border:2px solid #ffeb3b;border-radius:8px;width:90%;padding:10px 16px;margin:0}
 .fs legend{color:#ffeb3b;padding:0 8px}
 .fs label{display:block;font-size:18px;margin:6px 0}
+.sel{width:95%;padding:12px;margin:6px 0;background:#fff;color:#000;font-size:18px;border:2px solid #ffeb3b;border-radius:5px;box-sizing:border-box}
+.lnk{background:none;border:none;font-size:19px;text-decoration:underline;cursor:pointer;font-family:inherit;padding:6px}
+.lnk-green{color:#00e676}.lnk-blue{color:#4fc3f7}
 </style>
 </head>
 <body>
@@ -44,22 +47,59 @@ textarea.box{resize:none}
 <h1>by KIK</h1>
 
 <div id="s-login" class="group">
-<h2 tabindex="-1">Login</h2>
+<h2 tabindex="-1">Student Login</h2>
 <label for="l-name">Name</label>
 <input class="fx" id="l-name" type="text" autocomplete="off">
-<fieldset class="fs" role="radiogroup"><legend>Student or Teacher</legend>
-<label><input type="radio" name="role" value="student" id="r-student"> Student</label>
-<label><input type="radio" name="role" value="teacher"> Teacher</label>
-</fieldset>
-<fieldset class="fs hidden" id="l-level" role="radiogroup"><legend id="l-level-legend"></legend>
-<label><input type="radio" name="level" value="school" id="r-school"> School</label>
-<label><input type="radio" name="level" value="college"> College</label>
-</fieldset>
-<div id="l-detail-wrap" class="hidden" style="width:100%;text-align:center">
-<label for="l-detail" id="l-detail-label"></label>
-<input class="fx" id="l-detail" type="text" autocomplete="off">
-</div>
+<label for="l-class">Class</label>
+<select id="l-class" class="sel"><option value="">Select class</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select>
+<label for="l-region">Region</label>
+<select id="l-region" class="sel" onchange="otherBox('l-region','l-other')"><option value="">Select region</option><option value="Arani">ஆரணி (Arani)</option><option value="Thanjavur">தஞ்சாவூர் (Thanjavur)</option><option value="Poonamallee">பூனமல்லி (Poonamallee)</option><option value="Trichy">திருச்சி (Trichy)</option><option value="Others">Others</option></select>
+<input class="fx hidden" id="l-other" type="text" aria-label="Write your region" placeholder="Write your region">
 <button class="btn-yellow" onclick="doLogin()">Login</button>
+<button class="lnk lnk-green" onclick="show('tlogin')">I am a teacher</button>
+</div>
+
+<div id="s-tlogin" class="group hidden">
+<h2 tabindex="-1">Teacher Login</h2>
+<label for="t-id">Username or email</label>
+<input class="fx" id="t-id" type="text" autocomplete="username">
+<label for="t-pw">Password</label>
+<input class="fx" id="t-pw" type="password" autocomplete="current-password">
+<button class="btn-yellow" onclick="teacherLogin()">Login</button>
+<span>You don't have an account? <button class="lnk lnk-blue" onclick="show('treg')">Create account</button></span>
+<button class="btn-yellow" onclick="show('login')">Back</button>
+</div>
+
+<div id="s-treg" class="group hidden">
+<h2 tabindex="-1">Create Teacher Account</h2>
+<label for="r-first">First name</label><input class="fx" id="r-first" type="text">
+<label for="r-last">Last name</label><input class="fx" id="r-last" type="text">
+<label for="r-subject">Subject you teach</label><input class="fx" id="r-subject" type="text">
+<label for="r-region">Region</label>
+<select id="r-region" class="sel" onchange="otherBox('r-region','r-other')"><option value="">Select region</option><option value="Arani">ஆரணி (Arani)</option><option value="Thanjavur">தஞ்சாவூர் (Thanjavur)</option><option value="Poonamallee">பூனமல்லி (Poonamallee)</option><option value="Trichy">திருச்சி (Trichy)</option><option value="Others">Others</option></select>
+<input class="fx hidden" id="r-other" type="text" aria-label="Write your region" placeholder="Write your region">
+<label for="r-user">Username (letters, numbers, dash, underscore; no spaces)</label><input class="fx" id="r-user" type="text" autocomplete="off">
+<label for="r-email">Email</label><input class="fx" id="r-email" type="text" autocomplete="email">
+<label for="r-pass">Password</label><input class="fx" id="r-pass" type="password" autocomplete="new-password">
+<label for="r-code">Teacher code (given by your sir)</label><input class="fx" id="r-code" type="password" autocomplete="off">
+<button class="btn-yellow" onclick="teacherRegister()">Create</button>
+<button class="btn-yellow" onclick="show('tlogin')">Back</button>
+</div>
+
+<div id="s-thome" class="group hidden">
+<h2 tabindex="-1" id="t-welcome">Teacher</h2>
+<p id="t-region" style="font-size:18px;margin:0"></p>
+<label for="t-class">Class</label>
+<select id="t-class" class="sel"><option value="">Select class</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select>
+<button class="btn-yellow" onclick="teacherResults()">See Results</button>
+<button class="btn-yellow" onclick="teacherUse()">Use the app (not saved)</button>
+<button class="btn-yellow" onclick="teacherLogout()">Logout</button>
+</div>
+
+<div id="s-tres" class="group hidden" style="align-items:stretch">
+<h2 tabindex="-1" id="tres-head">Results</h2>
+<div id="tres-list"></div>
+<button class="btn-yellow" style="align-self:center" onclick="show('thome')">Back</button>
 </div>
 
 <div id="s-home" class="group hidden">
@@ -103,6 +143,7 @@ textarea.box{resize:none}
 <p id="hint" style="color:#ffeb3b;font-size:15px;margin:0"></p>
 <div id="timer-line" class="hidden" style="font-size:18px">நேரம்: <span id="time">0</span> வினாடிகள்</div>
 <button class="btn-yellow" onclick="submit()">Entry</button>
+<button class="btn-yellow" onclick="goBack()">Back</button>
 </div>
 
 <div id="s-fix" class="group hidden">
@@ -131,7 +172,7 @@ textarea.box{resize:none}
 <div class="res" id="res-mist" tabindex="0"></div>
 <div class="res hidden" id="res-list" tabindex="0"></div>
 <div class="row">
-<button class="btn-yellow" onclick="showList()">Show List</button>
+<button class="btn-yellow" onclick="showList()">Show as a List</button>
 <button class="btn-yellow hidden" id="read-btn" onclick="speak(listText,'ta')">Read Aloud</button>
 <button class="btn-yellow" onclick="show('home')">Home</button>
 </div>
@@ -162,10 +203,10 @@ textarea.box{resize:none}
 
 <script>
 const $=id=>document.getElementById(id);
-const SC=['login','home','cat','method','count','practice','fix','editor','result'];
-const BACK={cat:'home',method:'cat',count:'method',editor:'home',result:'home'};
+const SC=['login','tlogin','treg','thome','tres','home','cat','method','count','practice','fix','editor','result'];
+const BACK={cat:'home',method:'cat',count:'method',editor:'home',result:'home',practice:'count',tlogin:'login',treg:'tlogin',tres:'thome',thome:'login'};
 const CATN={Words:'வார்த்தைகள்',Line:'வரிகள்',Stanza:'ஸ்டான்ஸாக்கள்',Paragraph:'பாராக்கள்'};
-let lastNav=0,done=false,mode,cat,method,limit,items=[],idx=0,entries=[],secs=0,timer=null,cur='home',fixTarget='',W=[],listText='',audio=null,saved=null;
+let edData=null,lastNav=0,done=false,mode,cat,method,limit,items=[],idx=0,entries=[],secs=0,timer=null,cur='home',fixTarget='',W=[],listText='',audio=null,saved=null;
 const api=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
 const say=m=>{$('status').textContent='';setTimeout(()=>$('status').textContent=m,50)};
 const n=s=>(s||'').normalize('NFC').replace(/[\u200b-\u200d\ufeff\s]/g,'').replace(/[.,!?;:'"“”‘’]+$/,'');
@@ -182,38 +223,90 @@ function show(id){
 document.addEventListener('keydown',e=>{
   const t=e.target,typing=t.closest&&t.closest('input,textarea,#ed');
   if(e.key==='Backspace'&&(e.repeat||Date.now()-lastNav<350))return;
-  if(BACK[cur]&&((e.key==='Escape'&&!(t.closest&&t.closest('#ed')))||(e.key==='Backspace'&&!typing))){e.preventDefault();show(BACK[cur])}
+  if(canBack()&&((e.key==='Escape'&&!(t.closest&&t.closest('#ed')))||(e.key==='Backspace'&&!typing))){e.preventDefault();goBack()}
 });
 
 function pickMode(m){mode=m;$('mode-title').textContent=m==='learning'?'Learning Mode':'Testing Mode';show('cat')}
 function pickCat(c){cat=c;show('method')}
 function pickMethod(m){method=m;$('limit').value=1;show('count')}
-let student=null;
-function loginUi(){
-  const role=document.querySelector('input[name=role]:checked'),lv=document.querySelector('input[name=level]:checked');
-  $('l-level').classList.toggle('hidden',!role);
-  $('l-level-legend').textContent=role&&role.value==='teacher'?'School teacher or college teacher':'School student or college student';
-  $('l-detail-wrap').classList.toggle('hidden',!(role&&lv));
-  if(role&&lv)$('l-detail-label').textContent=(lv.value==='school'?'Class':'Degree')+(role.value==='teacher'?' you teach':'');
-}
-$('s-login').addEventListener('change',e=>{
-  loginUi();
-  if(e.target.name==='role')say($('l-level-legend').textContent+' என்பதை தேர்ந்தெடுங்கள்');
-  if(e.target.name==='level')say($('l-detail-label').textContent+' என்பதை எழுதுங்கள்');
-});
+let student=null,teacher=null;
+function otherBox(sel,box){$(box).classList.toggle('hidden',$(sel).value!=='Others')}
+function regionOf(sel,box){const v=$(sel).value;return v==='Others'?$(box).value.trim():v}
 function doLogin(){
-  const name=$('l-name').value.trim(),role=document.querySelector('input[name=role]:checked'),
-        lv=document.querySelector('input[name=level]:checked'),detail=$('l-detail').value.trim();
+  const name=$('l-name').value.trim(),cls=$('l-class').value,region=regionOf('l-region','l-other');
   if(!name){say('பெயரை எழுதுங்கள்');$('l-name').focus();return}
-  if(!role){say('மாணவரா ஆசிரியரா என்று தேர்ந்தெடுங்கள்');$('r-student').focus();return}
-  if(!lv){say($('l-level-legend').textContent+' என்று தேர்ந்தெடுங்கள்');$('r-school').focus();return}
-  if(!detail){say($('l-detail-label').textContent+' என்பதை எழுதுங்கள்');$('l-detail').focus();return}
-  student={name:name,role:role.value,level:lv.value,detail:detail,sid:Math.random().toString(36).slice(2)+Date.now().toString(36)};
+  if(!cls){say('வகுப்பை தேர்ந்தெடுங்கள்');$('l-class').focus();return}
+  if(!region){say('ஊரை தேர்ந்தெடுங்கள் அல்லது எழுதுங்கள்');$('l-region').focus();return}
+  student={name:name,role:'student',level:'school',detail:cls,region:region,sid:Math.random().toString(36).slice(2)+Date.now().toString(36)};
   try{sessionStorage.setItem('student',JSON.stringify(student))}catch(e){}
   api('/api/log_login',{student:student}).catch(()=>{});
   show('home');
 }
-$('s-login').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doLogin()}});
+function teacherLogin(){
+  const id=$('t-id').value.trim(),pw=$('t-pw').value;
+  if(!id||!pw){say('பயனர் பெயர் அல்லது மின்னஞ்சல், பாஸ்வேர்டு இரண்டையும் எழுதுங்கள்');return}
+  say('சரிபார்க்கிறது...');
+  api('/api/teacher/login',{id:id,password:pw}).then(d=>{
+    if(!d.ok){say(d.message||'லாகின் தவறு');return}
+    teacher={name:d.name,region:d.region};
+    try{sessionStorage.setItem('teacher',JSON.stringify(teacher))}catch(e){}
+    $('t-pw').value='';showThome();
+  }).catch(()=>say('இணைய இணைப்பை சரிபார்க்கவும்'));
+}
+function showThome(){
+  $('t-welcome').textContent='Teacher: '+teacher.name;
+  $('t-region').textContent='Region: '+teacher.region;
+  show('thome');
+}
+function teacherRegister(){
+  const v=id=>$(id).value.trim(),body={first:v('r-first'),last:v('r-last'),subject:v('r-subject'),region:regionOf('r-region','r-other'),
+    username:v('r-user'),email:v('r-email'),password:$('r-pass').value,code:$('r-code').value};
+  if(!body.first||!body.last||!body.subject||!body.region||!body.username||!body.email||!body.password||!body.code){say('எல்லா பெட்டிகளையும் நிரப்புங்கள்');return}
+  if(!/^[A-Za-z0-9_-]{3,30}$/.test(body.username)){say('பயனர் பெயரில் எழுத்து, எண், கோடு, அடிக்கோடு மட்டும். இடைவெளி கூடாது.');$('r-user').focus();return}
+  say('கணக்கு உருவாக்கப்படுகிறது...');
+  api('/api/teacher/register',body).then(d=>{
+    if(!d.ok){say(d.message||'கணக்கு உருவாக்க முடியவில்லை');return}
+    ['r-first','r-last','r-subject','r-user','r-email','r-pass','r-code','r-other'].forEach(i=>$(i).value='');
+    show('tlogin');say('Account created successfully. இப்போது லாகின் செய்யுங்கள்.');
+  }).catch(()=>say('இணைய இணைப்பை சரிபார்க்கவும்'));
+}
+function teacherResults(){
+  const cls=$('t-class').value;
+  if(!cls){say('வகுப்பை தேர்ந்தெடுங்கள்');$('t-class').focus();return}
+  say('முடிவுகள் வருகின்றன...');
+  fetch('/api/teacher/results',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cls:cls})})
+   .then(r=>{if(r.status===401)throw 401;return r.json()})
+   .then(d=>{
+     show('tres');
+     $('tres-head').textContent=d.region+' - Class '+d.cls+' - '+d.students.length+' student(s)';
+     const box=$('tres-list');box.innerHTML='';
+     if(!d.students.length){const p=document.createElement('p');p.textContent='இந்த வகுப்பில் இன்னும் மாணவர்கள் இல்லை.';box.appendChild(p)}
+     d.students.forEach(s=>{
+       const det=document.createElement('details'),sm=document.createElement('summary'),pre=document.createElement('pre');
+       sm.textContent=s.name;sm.style.cssText='cursor:pointer;font-size:18px;padding:6px 0';
+       pre.textContent=s.text;pre.className='res';pre.tabIndex=0;
+       det.appendChild(sm);det.appendChild(pre);box.appendChild(det);
+     });
+   })
+   .catch(e=>{if(e===401){try{sessionStorage.removeItem('teacher')}catch(x){}teacher=null;show('tlogin');say('மீண்டும் லாகின் செய்யுங்கள்')}else say('முடிவுகளை பெற முடியவில்லை')});
+}
+function teacherUse(){student={name:teacher.name,role:'teacher',level:'school',detail:'',region:teacher.region,sid:''};show('home')}
+function teacherLogout(){
+  fetch('/api/teacher/logout',{method:'POST'}).catch(()=>{});
+  try{sessionStorage.removeItem('teacher')}catch(e){}
+  teacher=null;student=null;show('login');
+}
+function canBack(){return cur==='home'?!!(teacher&&student&&student.role==='teacher'):!!BACK[cur]}
+function goBack(){
+  if(cur==='practice'&&!confirm('பயிற்சியை நிறுத்தி பின்னால் செல்லவா?'))return;
+  if(cur==='home'){showThome();return}
+  show(BACK[cur]);
+}
+[['s-login','doLogin'],['s-tlogin','teacherLogin'],['s-treg','teacherRegister']].forEach(([box,fn])=>{
+  $(box).addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();window[fn]()}
+  });
+});
 function exitApp(){window.location.href='https://www.google.com'}
 
 async function start(){
@@ -223,6 +316,8 @@ async function start(){
     say('உள்ளீடுகள் தயாராகின்றன...');
     try{items=(await api('/api/generate_prompts',{category:cat,count:limit})).items}
     catch(e){say('பிழை: இணைய இணைப்பை சரிபார்க்கவும்');return}
+    if(!items.length){say('உள்ளீடுகள் கிடைக்கவில்லை. மீண்டும் முயற்சிக்கவும்');return}
+    if(items.length<limit){limit=items.length}
   }
   done=false;idx=0;entries=[];secs=0;clearInterval(timer);
   $('inp').rows={Words:1,Line:1,Stanza:3,Paragraph:11}[cat];$('inp').value='';
@@ -242,6 +337,7 @@ $('inp').addEventListener('input',()=>{if(cat==='Words')$('inp').value=$('inp').
 $('inp').addEventListener('keydown',e=>{
   if(e.ctrlKey&&e.shiftKey&&e.code==='KeyR'){e.preventDefault();if(method==='hearing')speak(items[idx],'ta');return}
   if(e.ctrlKey&&e.shiftKey&&e.code==='KeyT'){e.preventDefault();if(method==='hearing')translateSpeak(items[idx]);return}
+  if(e.ctrlKey&&e.shiftKey&&e.code==='KeyE'){e.preventDefault();if(method==='hearing'&&cat==='Words')exampleSpeak(items[idx]);return}
   if(e.key==='Enter'){
     const multi=cat==='Stanza'||cat==='Paragraph';
     if(!multi||e.ctrlKey){e.preventDefault();submit()}
@@ -297,19 +393,20 @@ async function finish(){
   say('முடிவுகள் தயாராகின்றன...');
   await Promise.all(entries.map(e=>e.p));
   const wrong=entries.filter(e=>!e.ok).map(e=>[e.typed,e.expected]);
-  result({[cat]:entries.length},wrong,mode==='testing'?secs:null,{mode:mode,category:cat,method:method,count:entries.length,details:JSON.stringify(entries.map(e=>({typed:e.typed,expected:e.expected,ok:e.ok})))});
+  result({[cat]:entries.length},wrong,mode==='testing'?secs:null,{mode:mode,category:cat,method:method,count:entries.length,words:entries.reduce((n,e)=>n+e.typed.split(/\s+/).filter(Boolean).length,0)});
 }
 
 function result(counts,wrong,time,meta){
-  W=wrong;listText='';
+  W=wrong;listText='';edData=null;
   show('result');
   $('res-head').textContent='நீங்கள் எழுதிய ரிசல்ட்'+(time!==null?' - நேரம்: '+time+' வினாடிகள்':'');
   $('res-counts').textContent='நீங்கள் மொத்தமாக எழுதியவை:\n'+Object.keys(counts).map(k=>`${CATN[k]}: ${counts[k]}`).join('\n');
   $('res-mist').textContent='நீங்கள் தவறு செய்த வார்த்தைகளின் எண்ணிக்கை: '+wrong.length;
   $('res-list').classList.add('hidden');$('read-btn').classList.add('hidden');
-  if(meta&&student)api('/api/save_result',{student:student,mode:meta.mode,category:meta.category,method:meta.method,count:meta.count,seconds:time,mistakes:wrong,details:meta.details}).catch(()=>{});
+  if(meta&&student&&student.role==='student')api('/api/save_result',{student:student,mode:meta.mode,category:meta.category,method:meta.method,count:meta.count,seconds:time,mistakes:wrong,words:meta.words}).catch(()=>{});
 }
 async function showList(){
+  if(edData){renderSentences();return}
   if(!W.length){listText='தவறுகள் எதுவும் இல்லை. வாழ்த்துகள்!'}
   else{
     say('பட்டியல் தயாராகிறது...');
@@ -445,20 +542,36 @@ function openEditor(){
   $('tb').querySelectorAll('[aria-pressed]').forEach(b=>b.setAttribute('aria-pressed','false'));
   show('editor');ed.focus();
 }
+function renderSentences(){
+  const box=$('res-list');box.innerHTML='';let plain='';
+  edData.sentences.forEach((s,i)=>{
+    const det=document.createElement('details'),sm=document.createElement('summary'),inner=document.createElement('div');
+    sm.textContent='வாக்கியம் '+(i+1)+': '+s.text;sm.style.cssText='cursor:pointer;padding:6px 0';
+    const lines=s.mistakes.length?s.mistakes.map(m=>m.explain):['இந்த வாக்கியத்தில் தவறு இல்லை.'];
+    lines.forEach(l=>{const p=document.createElement('p');p.textContent=l;inner.appendChild(p)});
+    det.appendChild(sm);det.appendChild(inner);box.appendChild(det);
+    plain+='வாக்கியம் '+(i+1)+': '+s.text+'\n'+lines.join('\n')+'\n';
+  });
+  listText=plain;box.classList.remove('hidden');$('read-btn').classList.remove('hidden');
+  box.setAttribute('tabindex','-1');box.focus();say('');
+}
 async function submitEd(){
   const t=ed.innerText.trim();
   if(!t){say('முதலில் எழுதுங்கள்');return}
   say('ஜெமினி சரிபார்க்கிறது...');
-  let wrong;
-  try{wrong=(await api('/api/check_text',{text:t})).mistakes.map(m=>[m.wrong,m.correct])}
+  let d;
+  try{d=await api('/api/check_text',{text:t});if(!d.sentences)throw 0}
   catch(e){say('சரிபார்க்க முடியவில்லை. இணைய இணைப்பை சரிபார்த்து மீண்டும் Submit அழுத்தவும். உங்கள் எழுத்து அழியாது.');return}
-  const blocks=t.split(/\n\s*\n/).filter(x=>x.trim());
+  const blocks=t.split(/\n\s*\n/).filter(x=>x.trim()),words=t.split(/\s+/).length;
   result({
-    Words:t.split(/\s+/).length,
+    Words:words,
     Line:t.split('\n').filter(x=>x.trim()).length,
     Stanza:blocks.filter(b=>b.trim().split('\n').length>1).length,
     Paragraph:blocks.length
-  },wrong,null,{mode:'manual_writing',category:'Editor',method:'editor',count:t.split(/\s+/).length,details:t});
+  },d.mistakes,null,{mode:'manual_writing',category:'Editor',method:'editor',count:words,words:words});
+  edData=d;
+  $('res-counts').textContent+='\n\nமொத்த வார்த்தைகள்: '+d.total_words+'\nசரியாக எழுதிய வார்த்தைகள்: '+d.correct_words+'\nதவறாக எழுதிய வார்த்தைகள்: '+d.wrong_words;
+  $('res-mist').textContent='நீங்கள் பொதுவாக செய்த மயங்கொலி பிழைகள்:\n'+(d.groups.concat(d.top_pairs).join('\n')||'மயங்கொலி பிழைகள் எதுவும் இல்லை.');
 }
 
 /* ---------- Voices ---------- */
@@ -475,11 +588,18 @@ function speak(text,lang){
     .then(b=>{audio=new Audio(URL.createObjectURL(b));audio.play()})
     .catch(()=>say('ஆடியோ கிடைக்கவில்லை. இணைய இணைப்பை சரிபார்க்கவும்.'));
 }
+function exampleSpeak(w){
+  say('உதாரணம் தயாராகிறது...');
+  api('/api/example',{word:w}).then(d=>{
+    if(!d.sentence){say('உதாரணம் கிடைக்கவில்லை');return}
+    say('');speak(w+'. உதாரணம். '+d.sentence,'ta');
+  }).catch(()=>say('உதாரணம் கிடைக்கவில்லை. இணையத்தை சரிபார்க்கவும்.'));
+}
 function translateSpeak(t){
   api('/api/translate',{text:t}).then(d=>speak(d.translation,'en')).catch(()=>say('மொழிபெயர்க்க முடியவில்லை'));
 }
-try{const sv=sessionStorage.getItem('student');if(sv){student=JSON.parse(sv)}}catch(e){}
-show(student?'home':'login');
+try{const sv=sessionStorage.getItem('student');if(sv){student=JSON.parse(sv)}const tv=sessionStorage.getItem('teacher');if(tv){teacher=JSON.parse(tv)}}catch(e){}
+if(student)show('home');else if(teacher)showThome();else show('login');
 </script>
 </body>
 </html>
