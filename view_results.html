@@ -43,7 +43,7 @@ pre{white-space:pre-wrap;color:#0ff;margin:8px 0}
 {% for p in people %}
 <div class="person">
 <details>
-<summary><b>{{ p.name }}</b> - {{ p.role_label }}, {{ p.level_label }}, {{ p.detail_label }}: {{ p.detail }} - Last used: {{ p.last }}</summary>
+<summary><b>{{ p.name }}</b> - {{ p.role_label }}, {{ p.level_label }}, {{ p.detail_label }}: {{ p.detail }}, Region: {{ p.region }} - Last used: {{ p.last }}</summary>
 <div class="inner">
 <p>Logged in <b>{{ p.visits }}</b> time(s). Practice sessions: <b>{{ p.sessions }}</b>. First seen: {{ p.first }}. Last seen: {{ p.last }}.</p>
 <h3>Modes used</h3><ul>{% for l in p.mode_lines %}<li>{{ l }}</li>{% else %}<li>No practice yet</li>{% endfor %}</ul>
@@ -62,6 +62,10 @@ pre{white-space:pre-wrap;color:#0ff;margin:8px 0}
 <button class="danger" type="submit" aria-label="Delete {{ p.name }}">Delete</button></form>
 </div>
 {% else %}<p style="color:#888;text-align:center;padding:30px">No results here.</p>{% endfor %}
+<h2 style="color:#ffff00">Teacher logins (kept for 30 days)</h2>
+<table style="width:100%;border-collapse:collapse;color:#fff"><thead><tr><th align="left">Date / Time (IST)</th><th align="left">Name</th><th align="left">Username</th><th align="left">Region</th></tr></thead><tbody>
+{% for t in teacher_logins %}<tr><td>{{ t.when }}</td><td>{{ t.name }}</td><td>{{ t.username }}</td><td>{{ t.region }}</td></tr>{% else %}<tr><td colspan="4">No teacher logins yet.</td></tr>{% endfor %}
+</tbody></table>
 <p><a href="/" style="color:#ffff00">&larr; Go to Home Page</a></p></div>
 <script>
 function ai(b){
