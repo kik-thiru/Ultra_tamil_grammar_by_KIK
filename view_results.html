@@ -62,6 +62,16 @@ pre{white-space:pre-wrap;color:#0ff;margin:8px 0}
 <button class="danger" type="submit" aria-label="Delete {{ p.name }}">Delete</button></form>
 </div>
 {% else %}<p style="color:#888;text-align:center;padding:30px">No results here.</p>{% endfor %}
+<h2 style="color:#ffff00">Rejected dictionary (words that look valid but are wrong here)</h2>
+<form method="POST" class="bar"><input type="hidden" name="action" value="rej_add">
+<input type="text" name="rejected" required aria-label="Rejected word" placeholder="Rejected word">
+<input type="text" name="correct" required aria-label="Correct word" placeholder="Correct word">
+<input type="text" name="meaning" aria-label="Meaning (optional)" placeholder="Meaning (optional)">
+<button type="submit">Add</button></form>
+<table style="width:100%;border-collapse:collapse;color:#fff"><thead><tr><th align="left">Rejected</th><th align="left">Correct</th><th align="left">Meaning</th><th></th></tr></thead><tbody>
+{% for w in rejected %}<tr><td>{{ w.rejected }}</td><td>{{ w.correct }}</td><td>{{ w.meaning }}</td>
+<td><form method="POST" style="margin:0" onsubmit="return confirm('Delete this word?');"><input type="hidden" name="action" value="rej_del"><input type="hidden" name="rid" value="{{ w.id }}"><button class="danger" type="submit" aria-label="Delete {{ w.rejected }}">Delete</button></form></td></tr>{% else %}<tr><td colspan="4">No words yet.</td></tr>{% endfor %}
+</tbody></table>
 <h2 style="color:#ffff00">Teacher logins (kept for 30 days)</h2>
 <table style="width:100%;border-collapse:collapse;color:#fff"><thead><tr><th align="left">Date / Time (IST)</th><th align="left">Name</th><th align="left">Username</th><th align="left">Region</th></tr></thead><tbody>
 {% for t in teacher_logins %}<tr><td>{{ t.when }}</td><td>{{ t.name }}</td><td>{{ t.username }}</td><td>{{ t.region }}</td></tr>{% else %}<tr><td colspan="4">No teacher logins yet.</td></tr>{% endfor %}
