@@ -40,10 +40,23 @@ textarea.box{resize:none}
 .lnk{background:none;border:none;font-size:19px;text-decoration:underline;cursor:pointer;font-family:inherit;padding:6px}
 .lnk-green{color:#00e676}.lnk-blue{color:#4fc3f7}
 ::highlight(rej),::highlight(wrongw){text-decoration:underline wavy red}
+.container{position:relative}
+.gear{position:absolute;top:10px;right:12px;background:#ffeb3b;color:#000;border:2px solid #fbc02d;border-radius:6px;padding:6px 12px;font-weight:bold;cursor:pointer;font-size:15px}
+#setdlg{position:fixed;inset:0;background:rgba(0,0,0,.88);display:flex;justify-content:center;align-items:center;z-index:1000}
+body.lv,body.lv *{color:#000!important}
+body.lv{background:#fff!important}
+body.lv .container,body.lv .res,body.lv .fmt-box,body.lv #sub{background:#fff!important;border-color:#000!important}
+body.lv .container{border:3px solid #000}
+body.lv #fmt,body.lv #setdlg{background:rgba(255,255,255,.92)!important}
+body.lv .btn-yellow,body.lv #tb button,body.lv #sub button,body.lv .gear{background:#fff!important;border:3px solid #000!important}
+body.lv #tb button[aria-pressed=true]{background:#000!important;color:#fff!important}
+body.lv .lnk-green{color:#005a00!important}body.lv .lnk-blue{color:#0000b3!important}
+body.lv .fx,body.lv .sel,body.lv textarea.box,body.lv #ed{border:3px solid #000!important}
 </style>
 </head>
 <body>
 <div class="container">
+<button id="set-btn" class="gear" onclick="openSet()" aria-haspopup="dialog">Settings</button>
 <h1>Ultra Tamil Grammar</h1>
 <h1>by KIK</h1>
 
@@ -108,7 +121,7 @@ textarea.box{resize:none}
 <button class="btn-yellow" onclick="pickMode('learning')">Learning Mode</button>
 <button class="btn-yellow" onclick="pickMode('testing')">Testing Mode</button>
 <button class="btn-yellow" onclick="openEditor()">Manual Writing</button>
-<button class="btn-yellow" onclick="openDict()">Dictation</button>
+<button class="btn-yellow" onclick="openDict()">Dictionary</button>
 <button class="btn-yellow" onclick="exitApp()">Exit</button>
 </div>
 
@@ -141,31 +154,34 @@ textarea.box{resize:none}
 <h2 tabindex="-1">Practice</h2>
 <p id="instr" style="font-size:18px;color:#ffeb3b;margin:0"></p>
 <label for="inp" class="hidden">Write here</label>
-<textarea id="inp" class="box" rows="1" aria-label="இங்கே எழுதவும்"></textarea>
+<textarea id="inp" class="box" rows="1" autocomplete="off" aria-label="இங்கே எழுதவும்"></textarea>
 <p id="hint" style="color:#ffeb3b;font-size:15px;margin:0"></p>
 <div id="timer-line" class="hidden" style="font-size:18px">நேரம்: <span id="time">0</span> வினாடிகள்</div>
+<div class="row"><button class="btn-yellow" onclick="practiceTranslate()">Translate</button><button class="btn-yellow" onclick="practiceExplain()">Explain</button></div>
 <button class="btn-yellow" onclick="submit()">Entry</button>
 <button class="btn-yellow" onclick="goBack()">Back</button>
 </div>
 
 <div id="s-dict" class="group hidden">
-<h2 tabindex="-1">Dictation</h2>
+<h2 tabindex="-1">Dictionary</h2>
 <fieldset class="fs" role="radiogroup"><legend>Mode</legend>
 <label><input type="radio" name="dmode" value="learning" checked> Learning mode</label>
 <label><input type="radio" name="dmode" value="testing"> Testing mode</label>
 </fieldset>
 <label for="d-cat">Category</label><select id="d-cat" class="sel" onchange="fillEx()"></select>
 <label for="d-ex">Exercise</label><select id="d-ex" class="sel"></select>
+<label><input type="checkbox" id="d-slow"> Slow speed</label>
 <button class="btn-yellow" onclick="dictStart()">Start</button>
 <button class="btn-yellow" onclick="show('home')">Back</button>
 </div>
 
 <div id="s-dprac" class="group hidden">
-<h2 tabindex="-1" id="dp-title">Dictation</h2>
+<h2 tabindex="-1" id="dp-title">Dictionary</h2>
 <p id="dp-count" style="margin:0;font-size:18px;color:#ffeb3b"></p>
 <div style="font-size:18px">நேரம்: <span id="dp-time">0</span> வினாடிகள்</div>
 <input class="fx" id="dp-inp" type="text" autocomplete="off" aria-label="கேட்ட வார்த்தையை எழுதவும்">
-<p style="margin:0;color:#ffeb3b;font-size:15px">Enter = சமர்ப்பிக்க. Ctrl+Shift+R = மீண்டும் கேட்க. Ctrl+Shift+E = உதாரணம்.</p>
+<p style="margin:0;color:#ffeb3b;font-size:15px">Enter = சமர்ப்பிக்க. Ctrl+Shift+R = மீண்டும் கேட்க. Ctrl+Shift+E = உதாரணம். Ctrl+. = ஆங்கில மொழிபெயர்ப்பு.</p>
+<div class="row"><button class="btn-yellow" onclick="dictTranslate()">Translate</button><button class="btn-yellow" onclick="dictMeaning()">Meaning</button><button class="btn-yellow" onclick="dictExplain()">Explain</button></div>
 <p id="dp-msg" style="font-size:19px;margin:6px 0"></p>
 <div class="row"><button class="btn-yellow" onclick="dictSubmit()">Entry</button><button class="btn-yellow" onclick="dictRepeat()">Repeat</button><button class="btn-yellow" onclick="goBack()">Back</button></div>
 </div>
@@ -173,10 +189,11 @@ textarea.box{resize:none}
 <div id="s-fix" class="group hidden">
 <h2 tabindex="-1">நீங்கள் எழுதியது தவறு</h2>
 <p id="fix-word" style="font-size:20px"></p>
-<label for="f1">Box 1</label><input class="fx" id="f1" type="text">
-<label for="f2">Box 2</label><input class="fx" id="f2" type="text">
-<label for="f3">Box 3</label><input class="fx" id="f3" type="text">
+<label for="f1">Box 1</label><input class="fx" id="f1" type="text" autocomplete="off">
+<label for="f2">Box 2</label><input class="fx" id="f2" type="text" autocomplete="off">
+<label for="f3">Box 3</label><input class="fx" id="f3" type="text" autocomplete="off">
 <button class="btn-yellow" onclick="fixSubmit()">Error Submit</button>
+<button id="rm-btn" class="btn-yellow hidden" onclick="readMistake()">Read Mistake</button>
 </div>
 
 <div id="s-editor" class="group hidden">
@@ -222,6 +239,15 @@ textarea.box{resize:none}
 <label><input type="checkbox" id="m-sort"> Alphabetical order</label>
 <label><input type="checkbox" id="m-table"> Insert table</label>
 <div class="row"><button class="btn-yellow" onclick="applyFmt()">OK, Apply</button><button class="btn-yellow" onclick="closeFmt()">Cancel</button></div>
+</div></div>
+<div id="setdlg" class="hidden" role="dialog" aria-modal="true" aria-labelledby="set-title">
+<div class="fmt-box"><h2 id="set-title" tabindex="-1">Settings</h2>
+<label><input type="checkbox" id="s-lv"> Low Vision mode</label>
+<fieldset class="fs" role="radiogroup"><legend>Tamil voice</legend>
+<label><input type="radio" name="tv" value="Pallavi"> Pallavi</label>
+<label><input type="radio" name="tv" value="Valluvar"> Valluvan</label>
+</fieldset>
+<div class="row"><button class="btn-yellow" onclick="closeSet()">Close</button></div>
 </div></div>
 <div id="status" aria-live="polite" role="status"></div>
 </div>
@@ -351,7 +377,7 @@ async function start(){
   let h=(cat==='Stanza'||cat==='Paragraph')?'சமர்ப்பிக்க Ctrl+Enter அல்லது Entry பட்டன். ':'சமர்ப்பிக்க Enter. ';
   if(cat==='Line'||cat==='Paragraph')h+='முடிவில் டாட் (.) வைக்கவும். ';
   if(cat==='Words')h+='ஒரே ஒரு வார்த்தை மட்டும். ';
-  if(method==='hearing')h+='Ctrl+Shift+R = மீண்டும் கேட்க, Ctrl+Shift+T = ஆங்கில மொழிபெயர்ப்பு.';
+  if(method==='hearing')h+='Ctrl+Shift+R = மீண்டும் கேட்க, Ctrl+. = ஆங்கில மொழிபெயர்ப்பு.';
   $('hint').textContent=h;
   label();show('practice');$('inp').focus();
   if(mode==='testing'){const t0=Date.now();timer=setInterval(()=>{secs=Math.floor((Date.now()-t0)/1000);$('time').textContent=secs},1000)}
@@ -362,7 +388,7 @@ function label(){$('instr').textContent=`உள்ளீடு ${idx+1} / ${limi
 $('inp').addEventListener('input',()=>{if(cat==='Words')$('inp').value=$('inp').value.replace(/\s+/g,'')});
 $('inp').addEventListener('keydown',e=>{
   if(e.ctrlKey&&e.shiftKey&&e.code==='KeyR'){e.preventDefault();if(method==='hearing')speak(items[idx],'ta');return}
-  if(e.ctrlKey&&e.shiftKey&&e.code==='KeyT'){e.preventDefault();if(method==='hearing')translateSpeak(items[idx]);return}
+  if(e.ctrlKey&&!e.shiftKey&&e.code==='Period'){e.preventDefault();if(method==='hearing')translateSpeak(items[idx]);return}
   if(e.ctrlKey&&e.shiftKey&&e.code==='KeyE'){e.preventDefault();if(method==='hearing'&&cat==='Words')exampleSpeak(items[idx]);return}
   if(e.key==='Enter'){
     const multi=cat==='Stanza'||cat==='Paragraph';
@@ -398,6 +424,8 @@ function openFix(c,typed){
   const tail=' மூன்று பெட்டிகளிலும் சரியாக எழுதி Error Submit அழுத்தவும்.';
   $('fix-word').textContent='நீங்கள் எழுதியது: '+typed+'. சரியான வார்த்தை: '+c+'.'+tail;
   show('fix');
+  fixAudio=[];$('rm-btn').classList.add('hidden');
+  api('/api/mistake_audio',{typed:typed,correct:c}).then(d=>{fixAudio=d.files||[];if(fixAudio.length)$('rm-btn').classList.remove('hidden')}).catch(()=>{});
   api('/api/explain',{pairs:[[typed,c]],header:false}).then(d=>{
     $('fix-word').textContent='உங்கள் தவறு: '+d.text+tail;
     say(d.text);
@@ -622,18 +650,28 @@ async function openDict(){
   show('dict');
   if(DICT)return;
   try{DICT=await (await fetch('/api/dictation')).json()}catch(e){say('பயிற்சிகளை பெற முடியவில்லை');return}
-  $('d-cat').innerHTML=DICT.map((c,i)=>'<option value="'+i+'">'+(i+1)+'. '+c.name+'</option>').join('');
+  $('d-cat').innerHTML='<option value="mine">My mistakes (words I got wrong before)</option>'+DICT.map((c,i)=>'<option value="'+i+'">'+(i+1)+'. '+c.name+'</option>').join('');
   fillEx();
 }
 function fillEx(){
+  if($('d-cat').value==='mine'){$('d-ex').innerHTML='<option value="0">My mistakes (words I got wrong before)</option>';return}
   const c=DICT[$('d-cat').value];
   $('d-ex').innerHTML=c.exercises.map((e,i)=>'<option value="'+i+'">'+e.name+' ('+e.words.length+' words)</option>').join('');
 }
-function dictStart(){
+async function dictStart(){
   if(!DICT){say('பயிற்சிகள் இன்னும் வரவில்லை');return}
-  const c=DICT[$('d-cat').value],e=c.exercises[$('d-ex').value];
-  dc={mode:document.querySelector('input[name=dmode]:checked').value,cat:c.name,ex:e.name,words:e.words,idx:0,res:[],retry:false,t0:Date.now()};
-  $('dp-title').textContent=c.name+' - '+e.name;$('dp-msg').textContent='';$('dp-time').textContent=0;
+  const mode=document.querySelector('input[name=dmode]:checked').value,mine=$('d-cat').value==='mine';
+  let c,e;
+  if(mine){
+    say('உங்கள் தவறுகள் தேடப்படுகின்றன...');
+    let w=[];
+    try{w=(await api('/api/dictionary/mine',{student:student})).words||[]}catch(x){say('பிழை: இணைய இணைப்பை சரிபார்க்கவும்');return}
+    if(!w.length){say('இதுவரை தவறாக எழுதிய வார்த்தைகள் இல்லை. முதலில் வேறு பயிற்சிகளை செய்யுங்கள்.');return}
+    c={name:'My mistakes'};e={name:'My mistakes',words:w};
+  }else{c=DICT[$('d-cat').value];e=c.exercises[$('d-ex').value]}
+  const rate=$('d-slow').checked?'-30%':'';
+  dc={mode:mode,cat:c.name,ex:e.name,words:e.words,idx:0,res:[],retry:false,t0:Date.now(),rate:rate};
+  $('dp-title').textContent=c.name+' - '+e.name;$('dp-msg').textContent='';$('dp-time').textContent=0;say('');
   e.words.slice(0,3).forEach(w=>prefetch(w));
   show('dprac');
   dictNext();
@@ -644,9 +682,9 @@ function dictNext(){
   dc.retry=false;$('dp-inp').value='';
   $('dp-count').textContent='வார்த்தை '+(dc.idx+1)+' / '+dc.words.length;
   if(dc.words[dc.idx+1])prefetch(dc.words[dc.idx+1]);
-  speak(dc.words[dc.idx],'ta');$('dp-inp').focus();
+  speak(dc.words[dc.idx],'ta',dc.rate);$('dp-inp').focus();
 }
-function dictRepeat(){speak(dc.words[dc.idx],'ta');$('dp-inp').focus()}
+function dictRepeat(){speak(dc.words[dc.idx],'ta',dc.rate);$('dp-inp').focus()}
 function dictAdvance(){
   dc.idx++;
   if(dc.idx>=dc.words.length)dictFinish();else dictNext();
@@ -682,28 +720,69 @@ function dictFinish(){
 }
 $('dp-inp').addEventListener('keydown',e=>{
   if(e.ctrlKey&&e.shiftKey&&e.code==='KeyR'){e.preventDefault();dictRepeat();return}
+  if(e.ctrlKey&&!e.shiftKey&&e.code==='Period'){e.preventDefault();dictTranslate();return}
   if(e.ctrlKey&&e.shiftKey&&e.code==='KeyE'){e.preventDefault();exampleSpeak(dc.words[dc.idx]);return}
   if(e.key==='Enter'){e.preventDefault();dictSubmit()}
 });
 
+/* ---------- Settings, paste block, extra buttons ---------- */
+let voiceTa='Pallavi',fixAudio=[];
+function applyLV(on){document.body.classList.toggle('lv',on)}
+function saveSet(){try{localStorage.setItem('lv',document.body.classList.contains('lv')?'1':'0');localStorage.setItem('voice',voiceTa)}catch(e){}}
+function loadSet(){try{applyLV(localStorage.getItem('lv')==='1');voiceTa=localStorage.getItem('voice')||'Pallavi'}catch(e){}}
+function openSet(){
+  $('s-lv').checked=document.body.classList.contains('lv');
+  document.querySelectorAll('input[name=tv]').forEach(r=>r.checked=r.value===voiceTa);
+  $('setdlg').classList.remove('hidden');$('set-title').focus();
+}
+function closeSet(){$('setdlg').classList.add('hidden');saveSet()}
+$('s-lv').addEventListener('change',()=>{applyLV($('s-lv').checked);saveSet()});
+document.querySelectorAll('input[name=tv]').forEach(r=>r.addEventListener('change',()=>{if(r.checked){voiceTa=r.value;saveSet();say(r.value==='Valluvar'?'வள்ளுவன் குரல்':'பல்லவி குரல்')}}));
+$('setdlg').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();closeSet()}});
+['inp','f1','f2','f3','dp-inp'].forEach(id=>{
+  const el=$(id);
+  ['paste','drop','contextmenu'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();if(ev!=='contextmenu')say('இங்கே ஒட்டுவது அனுமதிக்கப்படாது. தட்டச்சு செய்யுங்கள்.')}));
+  el.addEventListener('beforeinput',e=>{if(e.inputType==='insertFromPaste'||e.inputType==='insertFromDrop')e.preventDefault()});
+  el.addEventListener('keydown',e=>{if(((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v')||(e.shiftKey&&e.key==='Insert'))e.preventDefault()});
+});
+function practiceTranslate(){if(method==='hearing')translateSpeak(items[idx]);else say('இது கேட்டு எழுதும் முறையில் மட்டும்')}
+function practiceExplain(){if(method==='hearing'&&cat==='Words')exampleSpeak(items[idx]);else say('Explain வார்த்தைகளுக்கு, கேட்டு எழுதும் முறையில் மட்டும்')}
+function dictTranslate(){translateSpeak(dc.words[dc.idx]);$('dp-inp').focus()}
+function dictExplain(){exampleSpeak(dc.words[dc.idx]);$('dp-inp').focus()}
+function dictMeaning(){
+  const w=dc.words[dc.idx];say('அர்த்தம் தயாராகிறது...');
+  api('/api/meaning',{word:w}).then(d=>{
+    const l=(d.text||'').split('\n'),ta=l[0],en=l[1];
+    if(!ta){say('அர்த்தம் கிடைக்கவில்லை');return}
+    $('dp-msg').textContent=ta+(en?' | '+en:'');say('');
+    ttsGet(ta,'ta').then(u=>{if(audio)audio.pause();audio=new Audio(u);if(en)audio.onended=()=>speak(en,'en');audio.play()}).catch(()=>{});
+  }).catch(()=>say('அர்த்தம் கிடைக்கவில்லை. இணையத்தை சரிபார்க்கவும்.'));
+  $('dp-inp').focus();
+}
+function readMistake(){
+  if(!fixAudio.length)return;
+  if(audio)audio.pause();
+  let i=0;const next=()=>{if(i>=fixAudio.length)return;audio=new Audio(fixAudio[i++]);audio.onended=next;audio.play().catch(()=>say('ஆடியோ கிடைக்கவில்லை'))};next();
+}
+
 /* ---------- Voices ---------- */
 if('speechSynthesis' in window)speechSynthesis.getVoices();
 const ttsCache={};
-function ttsGet(text,lang){
-  const k=lang+'|'+text;
-  if(!ttsCache[k])ttsCache[k]=fetch('/api/generate_tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,lang:lang})})
+function ttsGet(text,lang,rate){
+  const k=lang+'|'+voiceTa+'|'+(rate||'')+'|'+text;
+  if(!ttsCache[k])ttsCache[k]=fetch('/api/generate_tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,lang:lang,voice:voiceTa,rate:rate||''})})
     .then(r=>{if(!r.ok)throw 0;return r.blob()}).then(b=>URL.createObjectURL(b)).catch(e=>{delete ttsCache[k];throw e});
   return ttsCache[k];
 }
-function prefetch(t){ttsGet(t,'ta').catch(()=>{})}
-function speak(text,lang){
+function prefetch(t){ttsGet(t,'ta',dc&&dc.rate).catch(()=>{})}
+function speak(text,lang,rate){
   if(!text)return;
   if(audio){audio.pause()}
   if(lang==='en'&&'speechSynthesis' in window){
     const v=speechSynthesis.getVoices().find(v=>/David/i.test(v.name));
     if(v){const u=new SpeechSynthesisUtterance(text);u.voice=v;speechSynthesis.cancel();speechSynthesis.speak(u);return}
   }
-  ttsGet(text,lang).then(u=>{audio=new Audio(u);audio.play()}).catch(()=>say('ஆடியோ கிடைக்கவில்லை. இணைய இணைப்பை சரிபார்க்கவும்.'));
+  ttsGet(text,lang,rate).then(u=>{audio=new Audio(u);audio.play()}).catch(()=>say('ஆடியோ கிடைக்கவில்லை. இணைய இணைப்பை சரிபார்க்கவும்.'));
 }
 function exampleSpeak(w){
   say('உதாரணம் தயாராகிறது...');
@@ -715,6 +794,7 @@ function exampleSpeak(w){
 function translateSpeak(t){
   api('/api/translate',{text:t}).then(d=>speak(d.translation,'en')).catch(()=>say('மொழிபெயர்க்க முடியவில்லை'));
 }
+loadSet();
 try{const sv=sessionStorage.getItem('student');if(sv){student=JSON.parse(sv)}const tv=sessionStorage.getItem('teacher');if(tv){teacher=JSON.parse(tv)}}catch(e){}
 if(student)show('home');else if(teacher)showThome();else show('login');
 </script>
