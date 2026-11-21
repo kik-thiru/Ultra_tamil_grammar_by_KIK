@@ -12,6 +12,8 @@ from collections import Counter
 from datetime import timedelta
 from flask import Flask, request, jsonify, send_from_directory, Response, session, render_template_string
 import urllib.request
+import urllib.error
+from urllib.parse import quote
 import edge_tts
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -39,19 +41,47 @@ if not GEMINI_API_KEY:
     print("எச்சரிக்கை: Gemini API key கிடைக்கவில்லை. key.txt ஃபைலில் key-ஐ வைக்கவும்.")
 
 
+_GOOD_MODEL = [None]
+
+
 def ask_gemini(prompt):
     if not GEMINI_API_KEY:
         raise RuntimeError("Gemini API key இல்லை")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
+    models = [_GOOD_MODEL[0] or MODEL_NAME]
+    for m in (MODEL_NAME, "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"):
+        if m not in models:
+            models.append(m)
     body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
-    req = urllib.request.Request(url, data=body, headers={
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
-    })
-    with urllib.request.urlopen(req, timeout=40) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    parts = data["candidates"][0]["content"]["parts"]
-    return "".join(p.get("text", "") for p in parts).strip()
+    last = None
+    for model in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        req = urllib.request.Request(url, data=body, headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": GEMINI_API_KEY,
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            parts = data["candidates"][0]["content"].get("parts", [])
+            text = "".join(p.get("text", "") for p in parts).strip()
+            if text:
+                _GOOD_MODEL[0] = model
+                return text
+            last = RuntimeError("Gemini வெற்று பதில் தந்தது (" + model + ")")
+        except urllib.error.HTTPError as e:
+            detail = ""
+            try:
+                detail = e.read().decode("utf-8", "ignore")[:300]
+            except Exception:
+                pass
+            print("Gemini HTTP பிழை", e.code, model, detail)
+            last = e
+            if e.code in (400, 401, 403):
+                break
+        except Exception as e:
+            print("Gemini பிழை", model, e)
+            last = e
+    raise last or RuntimeError("Gemini பதில் இல்லை")
 
 
 # ---------- Pages ----------
@@ -122,6 +152,7 @@ def init_db():
                 name TEXT, username TEXT, region TEXT)""")
             cur.execute("CREATE TABLE IF NOT EXISTS examples (word TEXT PRIMARY KEY, sentence TEXT)")
             cur.execute("CREATE TABLE IF NOT EXISTS rejected_words (id SERIAL PRIMARY KEY, rejected TEXT UNIQUE, correct TEXT, meaning TEXT)")
+            cur.execute("CREATE TABLE IF NOT EXISTS meanings (word TEXT PRIMARY KEY, text TEXT)")
             cur.execute("INSERT INTO rejected_words (rejected, correct, meaning) VALUES ('நாழை','நாளை','நாளை என்றால் tomorrow') ON CONFLICT (rejected) DO NOTHING")
     except Exception as e:
         print("Database Initialization Error:", e)
@@ -199,8 +230,8 @@ def save_result():
 
 # ---------- Admin Results Page ----------
 MODE_L = {'learning': 'Learning Mode', 'testing': 'Testing Mode', 'manual_writing': 'Manual Writing',
-          'dictation_learning': 'Dictation (Learning)', 'dictation_testing': 'Dictation (Testing)'}
-METH_L = {'hearing': 'Hearing and Writing', 'manual': 'Self writing (Manual)', 'editor': 'Writing box (Manual Writing mode)', 'dictation': 'Dictation'}
+          'dictation_learning': 'Dictionary (Learning)', 'dictation_testing': 'Dictionary (Testing)'}
+METH_L = {'hearing': 'Hearing and Writing', 'manual': 'Self writing (Manual)', 'editor': 'Writing box (Manual Writing mode)', 'dictation': 'Dictionary'}
 
 
 def ist(dt):
@@ -407,7 +438,7 @@ def log_login():
             conn.close()
 
 
-# ---------- Dictation data, rejected dictionary ----------
+# ---------- Dictionary data, rejected dictionary ----------
 _rej_cache = {"t": 0, "m": {}}
 
 
@@ -617,7 +648,7 @@ def example():
     try:
         prompt = (f'Write ONE short, simple Tamil sentence (6 to 10 words) that clearly shows the meaning of the Tamil word "{word}", '
                   "suitable for a school student. Return only the sentence, nothing else.")
-        sentence = (ask_gemini(prompt).splitlines() or [''])[0].replace('*', '').strip()
+        sentence = next((l.strip().strip('"“”\'') for l in ask_gemini(prompt).replace('*', '').splitlines() if l.strip()), '')
     except Exception as e:
         print("example Gemini பிழை:", e)
         return jsonify({"sentence": ""}), 500
@@ -633,6 +664,120 @@ def example():
         if conn:
             conn.close()
     return jsonify({"sentence": sentence})
+
+
+@app.route('/api/meaning', methods=['POST'])
+def meaning():
+    word = str((request.get_json(silent=True) or {}).get('word', '')).strip()[:60]
+    if not word:
+        return jsonify({"text": ""})
+    conn = None
+    try:
+        conn = db()
+        if conn:
+            with conn, conn.cursor() as cur:
+                cur.execute("SELECT text FROM meanings WHERE word=%s", (word,))
+                row = cur.fetchone()
+                if row:
+                    return jsonify({"text": row[0]})
+    except Exception as e:
+        print("meaning படிக்க பிழை:", e)
+    finally:
+        if conn:
+            conn.close()
+    try:
+        prompt = (f'Give the meaning of the Tamil word "{word}" for a school student in exactly two short lines: '
+                  "the first line is the meaning in simple Tamil, the second line is the English meaning. "
+                  "No numbering, no markdown, nothing else.")
+        lines = [l.strip() for l in ask_gemini(prompt).replace('*', '').splitlines() if l.strip()]
+        text = "\n".join(lines[:2])[:400]
+    except Exception as e:
+        print("meaning Gemini பிழை:", e)
+        return jsonify({"text": ""}), 500
+    conn = None
+    try:
+        conn = db()
+        if conn and text:
+            with conn, conn.cursor() as cur:
+                cur.execute("INSERT INTO meanings (word, text) VALUES (%s,%s) ON CONFLICT (word) DO NOTHING", (word, text))
+    except Exception as e:
+        print("meaning சேமிக்க பிழை:", e)
+    finally:
+        if conn:
+            conn.close()
+    return jsonify({"text": text})
+
+
+@app.route('/api/dictionary/mine', methods=['POST'])
+def dictionary_mine():
+    st = (request.get_json(silent=True) or {}).get('student') or {}
+    words = []
+    if st.get('role') != 'student':
+        return jsonify({"words": words})
+    conn = None
+    try:
+        conn = db()
+        if conn:
+            with conn, conn.cursor() as cur:
+                cur.execute("""SELECT details FROM results WHERE mode LIKE 'dictation%%'
+                    AND lower(trim(coalesce(name,'')))=%s AND lower(trim(coalesce(detail,'')))=%s
+                    AND lower(trim(coalesce(region,'')))=%s ORDER BY created_at DESC LIMIT 60""",
+                            (str(st.get('name', '')).strip().lower(), str(st.get('detail', '')).strip().lower(),
+                             str(st.get('region', '')).strip().lower()))
+                for (note,) in cur.fetchall():
+                    if note and 'wrong: ' in note:
+                        for w in note.split('wrong: ', 1)[1].split(', '):
+                            w = w.strip()
+                            if w and w not in words:
+                                words.append(w)
+    except Exception as e:
+        print("dictionary_mine பிழை:", e)
+    finally:
+        if conn:
+            conn.close()
+    return jsonify({"words": words[:40]})
+
+
+AUDIO_DIR = os.path.join(BASE_DIR, 'audio')
+
+
+def audio_letters(stem):
+    s = re.sub(r'[\s_\-\d()]+', '', unicodedata.normalize('NFC', stem))
+    parts = re.split(r'டூ|to|TO|To', s)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return None
+    return parts[0][0], parts[1][0]
+
+
+@app.route('/api/mistake_audio', methods=['POST'])
+def mistake_audio():
+    d = request.get_json(silent=True) or {}
+    typed, correct = str(d.get('typed', '')), str(d.get('correct', ''))
+    pairs = []
+    for tag, a1, a2, b1, b2 in difflib.SequenceMatcher(None, typed, correct).get_opcodes():
+        if tag == 'replace' and a2 - a1 == 1 and b2 - b1 == 1:
+            x, y = typed[a1], correct[b1]
+            if x != y and LETTER_GROUPS.get(x) and LETTER_GROUPS.get(x) == LETTER_GROUPS.get(y):
+                pairs.append((x, y))
+    files = []
+    if pairs and os.path.isdir(AUDIO_DIR):
+        table = {}
+        for fn in os.listdir(AUDIO_DIR):
+            stem, ext = os.path.splitext(fn)
+            if ext.lower() in ('.mp3', '.wav', '.ogg', '.m4a'):
+                lt = audio_letters(stem)
+                if lt:
+                    table.setdefault(lt, fn)
+        for x, y in pairs:
+            key = (y, x) if os.environ.get('AUDIO_LEFT_IS_CORRECT') else (x, y)
+            if key in table and '/audio/' + quote(table[key]) not in files:
+                files.append('/audio/' + quote(table[key]))
+    return jsonify({"files": files})
+
+
+@app.route('/audio/<path:name>')
+def audio_file(name):
+    return send_from_directory(AUDIO_DIR, name)
 
 
 def load_teacher_logins():
@@ -813,8 +958,8 @@ Otherwise reply with ONLY the corrected text, nothing else."""
 
 
 # ---------- Check a long text (Manual Writing editor) ----------
-LETTER_GROUPS = {'ண': 1, 'ன': 1, 'ந': 1, 'ல': 2, 'ள': 2, 'ழ': 2, 'ர': 3, 'ற': 3}
-GROUP_NAMES = {1: 'ண ன ந', 2: 'ல ள ழ', 3: 'ர ற'}
+LETTER_GROUPS = {'ண': 1, 'ன': 1, 'ந': 1, 'ஞ': 1, 'ல': 2, 'ள': 2, 'ழ': 2, 'ர': 3, 'ற': 3}
+GROUP_NAMES = {1: 'ண ன ந ஞ', 2: 'ல ள ழ', 3: 'ர ற'}
 
 
 def split_sentences(text):
@@ -909,8 +1054,8 @@ def translate_text():
 
 
 # ---------- Text to speech ----------
-async def make_audio(text, voice):
-    communicate = edge_tts.Communicate(text, voice)
+async def make_audio(text, voice, rate=None):
+    communicate = edge_tts.Communicate(text, voice, rate=rate) if rate else edge_tts.Communicate(text, voice)
     audio = b""
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
@@ -928,9 +1073,13 @@ def generate_tts():
         return jsonify({"status": "error", "message": "text இல்லை"}), 400
 
     voice = "ta-IN-PallaviNeural" if lang == 'ta' else "en-US-GuyNeural"
+    if lang == 'ta' and data.get('voice') == 'Valluvar':
+        voice = "ta-IN-ValluvarNeural"
+    rate = str(data.get('rate', ''))
+    rate = rate if re.match(r'^[+-]\d{1,2}%$', rate) else None
 
     try:
-        audio = asyncio.run(make_audio(text, voice))
+        audio = asyncio.run(make_audio(text, voice, rate))
     except Exception as e:
         print("tts பிழை:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
