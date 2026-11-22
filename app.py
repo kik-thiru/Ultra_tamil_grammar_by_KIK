@@ -378,8 +378,6 @@ def view_results():
         return render_template_string(html, logged_in=False, error=error, people=[], search="")
     try:
         action = request.form.get('action')
-        if action in ('rej_add', 'rej_del'):
-            change_rejected(action, request.form)
         if action in ('delete_one', 'delete_all', 'delete_time'):
             conn = db()
             if not conn:
@@ -409,7 +407,7 @@ def view_results():
         search = request.form.get('search', '').strip().lower()
         if search:
             people = [p for p in people if search in (p['name'] + ' ' + p['detail'] + ' ' + p['role_label'] + ' ' + p['level_label']).lower()]
-        return render_template_string(html, logged_in=True, error="", people=people, search=search, teacher_logins=load_teacher_logins(), rejected=load_rejected())
+        return render_template_string(html, logged_in=True, error="", people=people, search=search, teacher_logins=load_teacher_logins())
     except Exception as e:
         print("Admin Page Error:", e)
         return f"Database Error: {e}", 500
@@ -443,21 +441,30 @@ _rej_cache = {"t": 0, "m": {}}
 
 
 def rejected_map():
-    if time.time() - _rej_cache["t"] < 30:
+    """rejected_words.txt: each line 'wrong (correct)' or 'wrong (correct) - meaning'.
+    A slash on the left gives several wrong words; a slash inside the brackets gives several correct options."""
+    if time.time() - _rej_cache["t"] < 20:
         return _rej_cache["m"]
-    m, conn = {}, None
-    try:
-        conn = db()
-        if conn:
-            with conn, conn.cursor() as cur:
-                cur.execute("SELECT rejected, correct, meaning FROM rejected_words")
-                for r in cur.fetchall():
-                    m[unicodedata.normalize('NFC', r[0])] = {"correct": r[1], "meaning": r[2] or ''}
-    except Exception as e:
-        print("rejected_map பிழை:", e)
-    finally:
-        if conn:
-            conn.close()
+    m = {}
+    for folder in (BASE_DIR, os.path.join(BASE_DIR, 'templates')):
+        path = os.path.join(folder, 'rejected_words.txt')
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding='utf-8-sig') as f:
+                for line in f:
+                    line = unicodedata.normalize('NFC', line.strip())
+                    mo = re.match(r'^(.+?)\s*[\(（]([^\)）]+)[\)）]\s*(?:[-–:]\s*(.*))?$', line)
+                    if not mo:
+                        continue
+                    options = [x.strip() for x in mo.group(2).split('/') if x.strip()]
+                    if not options:
+                        continue
+                    for w in [x.strip() for x in mo.group(1).split('/') if x.strip()]:
+                        m[w] = {"correct": " / ".join(options), "first": options[0], "meaning": (mo.group(3) or '').strip()}
+        except Exception as e:
+            print("rejected_words.txt படிக்க பிழை:", e)
+        break
     _rej_cache.update(t=time.time(), m=m)
     return m
 
@@ -466,7 +473,7 @@ def apply_rejected_text(text):
     m = rejected_map()
     if not m:
         return text
-    return re.sub(r'[\u0B80-\u0BFF]+', lambda mo: m[mo.group(0)]['correct'] if mo.group(0) in m else mo.group(0),
+    return re.sub(r'[\u0B80-\u0BFF]+', lambda mo: m[mo.group(0)]['first'] if mo.group(0) in m else mo.group(0),
                   unicodedata.normalize('NFC', text))
 
 
@@ -631,38 +638,13 @@ def example():
     word = str((request.get_json(silent=True) or {}).get('word', '')).strip()[:60]
     if not word:
         return jsonify({"sentence": ""})
-    conn = None
-    try:
-        conn = db()
-        if conn:
-            with conn, conn.cursor() as cur:
-                cur.execute("SELECT sentence FROM examples WHERE word=%s", (word,))
-                row = cur.fetchone()
-                if row:
-                    return jsonify({"sentence": row[0]})
-    except Exception as e:
-        print("example படிக்க பிழை:", e)
-    finally:
-        if conn:
-            conn.close()
     try:
         prompt = (f'Write ONE short, simple Tamil sentence (6 to 10 words) that clearly shows the meaning of the Tamil word "{word}", '
                   "suitable for a school student. Return only the sentence, nothing else.")
         sentence = next((l.strip().strip('"“”\'') for l in ask_gemini(prompt).replace('*', '').splitlines() if l.strip()), '')
     except Exception as e:
         print("example Gemini பிழை:", e)
-        return jsonify({"sentence": ""}), 500
-    conn = None
-    try:
-        conn = db()
-        if conn and sentence:
-            with conn, conn.cursor() as cur:
-                cur.execute("INSERT INTO examples (word, sentence) VALUES (%s,%s) ON CONFLICT (word) DO NOTHING", (word, sentence))
-    except Exception as e:
-        print("example சேமிக்க பிழை:", e)
-    finally:
-        if conn:
-            conn.close()
+        return jsonify({"sentence": ""})
     return jsonify({"sentence": sentence})
 
 
@@ -741,37 +723,49 @@ def dictionary_mine():
 AUDIO_DIR = os.path.join(BASE_DIR, 'audio')
 
 
+def _cluster(text, i=0):
+    """The Tamil letter at position i together with its vowel sign or pulli."""
+    j = i + 1
+    while j < len(text) and (0x0BBE <= ord(text[j]) <= 0x0BCD or ord(text[j]) == 0x0BD7):
+        j += 1
+    return text[i:j]
+
+
 def audio_letters(stem):
     s = re.sub(r'[\s_\-\d()]+', '', unicodedata.normalize('NFC', stem))
     parts = re.split(r'டூ|to|TO|To', s)
     if len(parts) != 2 or not parts[0] or not parts[1]:
         return None
-    return parts[0][0], parts[1][0]
+    return _cluster(parts[0]), _cluster(parts[1])
 
 
 @app.route('/api/mistake_audio', methods=['POST'])
 def mistake_audio():
     d = request.get_json(silent=True) or {}
-    typed, correct = str(d.get('typed', '')), str(d.get('correct', ''))
+    typed = unicodedata.normalize('NFC', str(d.get('typed', '')))
+    correct = unicodedata.normalize('NFC', str(d.get('correct', '')))
     pairs = []
     for tag, a1, a2, b1, b2 in difflib.SequenceMatcher(None, typed, correct).get_opcodes():
         if tag == 'replace' and a2 - a1 == 1 and b2 - b1 == 1:
             x, y = typed[a1], correct[b1]
             if x != y and LETTER_GROUPS.get(x) and LETTER_GROUPS.get(x) == LETTER_GROUPS.get(y):
-                pairs.append((x, y))
+                pairs.append((_cluster(typed, a1), _cluster(correct, b1)))
     files = []
     if pairs and os.path.isdir(AUDIO_DIR):
-        table = {}
-        for fn in os.listdir(AUDIO_DIR):
+        full, base = {}, {}
+        for fn in sorted(os.listdir(AUDIO_DIR)):
             stem, ext = os.path.splitext(fn)
             if ext.lower() in ('.mp3', '.wav', '.ogg', '.m4a'):
                 lt = audio_letters(stem)
                 if lt:
-                    table.setdefault(lt, fn)
+                    full.setdefault(lt, fn)
+                    base.setdefault((lt[0][0], lt[1][0]), fn)
         for x, y in pairs:
-            key = (y, x) if os.environ.get('AUDIO_LEFT_IS_CORRECT') else (x, y)
-            if key in table and '/audio/' + quote(table[key]) not in files:
-                files.append('/audio/' + quote(table[key]))
+            if os.environ.get('AUDIO_LEFT_IS_CORRECT'):
+                x, y = y, x
+            fn = full.get((x, y)) or base.get((x[0], y[0]))
+            if fn and '/audio/' + quote(fn) not in files:
+                files.append('/audio/' + quote(fn))
     return jsonify({"files": files})
 
 
@@ -957,6 +951,56 @@ Otherwise reply with ONLY the corrected text, nothing else."""
     return jsonify({"ok": False, "correct": reply})
 
 
+def parse_json_list(raw):
+    """Gemini sometimes adds words around the JSON. Take only the list part; never fail."""
+    raw = re.sub(r"```(?:json)?", "", raw or "").strip()
+    i, j = raw.find('['), raw.rfind(']')
+    try:
+        data = json.loads(raw[i:j + 1]) if i >= 0 and j > i else []
+    except Exception as e:
+        print("JSON படிக்க முடியவில்லை:", e, raw[:200])
+        return []
+    return [x for x in data if isinstance(x, dict)] if isinstance(data, list) else []
+
+
+_wcache = {}
+
+
+@app.route('/api/check_words', methods=['POST'])
+def check_words():
+    words = [str(w).strip() for w in (request.get_json(silent=True) or {}).get('words', [])][:40]
+    words = [w for w in dict.fromkeys(words) if w]
+    rm = rejected_map()
+    wrong, ask = [], []
+    for w in words:
+        nw = unicodedata.normalize('NFC', w)
+        if nw in rm:
+            wrong.append({"wrong": w, "correct": rm[nw]["correct"], "from": "list"})
+        elif nw in _wcache:
+            if _wcache[nw]:
+                wrong.append({"wrong": w, "correct": _wcache[nw], "from": "gemini"})
+        else:
+            ask.append(w)
+    if ask:
+        prompt = ("Below are Tamil words typed by a student. Return ONLY a JSON array of the misspelt words, especially மயங்கொலி mistakes "
+                  "(ண/ன/ந, ல/ள/ழ, ர/ற), like [{\"wrong\":\"வனக்கம்\",\"correct\":\"வணக்கம்\"}]. Use [] if all are correct. "
+                  "Do not report correct words. No markdown.\n" + "\n".join(ask))
+        try:
+            found = parse_json_list(ask_gemini(prompt))
+            bad = {}
+            for m in found:
+                w, c = str(m.get('wrong', '')).strip(), str(m.get('correct', '')).strip()
+                if w in ask and c and c != w:
+                    bad[w] = c
+            for w in ask:
+                _wcache[unicodedata.normalize('NFC', w)] = bad.get(w, '')
+                if w in bad:
+                    wrong.append({"wrong": w, "correct": bad[w], "from": "gemini"})
+        except Exception as e:
+            print("check_words பிழை:", e)
+    return jsonify({"wrong": wrong})
+
+
 # ---------- Check a long text (Manual Writing editor) ----------
 LETTER_GROUPS = {'ண': 1, 'ன': 1, 'ந': 1, 'ஞ': 1, 'ல': 2, 'ள': 2, 'ழ': 2, 'ர': 3, 'ற': 3}
 GROUP_NAMES = {1: 'ண ன ந ஞ', 2: 'ல ள ழ', 3: 'ர ற'}
@@ -980,15 +1024,17 @@ Also report punctuation mistakes (missing or wrong full stop, comma, question ma
 Each item must be a single word. Use [] if there are no mistakes. No markdown.
 
 {numbered}"""
-    raw = re.sub(r"```(?:json)?", "", ask_gemini(prompt)).strip()
-    found = json.loads(raw)
+    found = parse_json_list(ask_gemini(prompt))
 
     per = [[] for _ in sents]
     pairs = []
     for m in found:
         try:
-            i = int(m.get('i')) - 1
             w, c = str(m['wrong']).strip(), str(m['correct']).strip()
+            try:
+                i = int(m.get('i')) - 1
+            except Exception:
+                i = next((k for k, x in enumerate(sents) if w in x), -1)
         except Exception:
             continue
         if not w or not c or w == c or not (0 <= i < len(sents)):
@@ -1046,10 +1092,10 @@ def translate_text():
     text = (request.get_json(silent=True) or {}).get('text', '')
     prompt = f"Translate the following Tamil text accurately into simple English. Return only the translation: '{text}'"
     try:
-        translation = ask_gemini(prompt) or text
+        translation = ask_gemini(prompt).strip().strip('"\'')
     except Exception as e:
         print("translate பிழை:", e)
-        translation = text
+        translation = ""
     return jsonify({"status": "success", "translation": translation})
 
 
