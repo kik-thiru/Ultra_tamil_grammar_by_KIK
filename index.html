@@ -26,6 +26,7 @@ textarea.box{resize:none}
 #status{color:#ffeb3b;font-size:16px;margin-top:12px;text-align:center;min-height:20px}
 .row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px}
 .row .btn-yellow{width:auto}
+.row.lr{justify-content:space-between;width:100%}
 #sub{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:10px;border:2px solid #ffeb3b;padding:8px;border-radius:8px;width:95%}
 #sub button{background:#fff;color:#000;border:2px solid #fbc02d;padding:8px 12px;font-size:15px;font-weight:bold;border-radius:6px;cursor:pointer}
 #sub button:focus{outline:3px solid #ffeb3b;background:#ffeb3b}
@@ -157,7 +158,7 @@ body.lv .fx,body.lv .sel,body.lv textarea.box,body.lv #ed{border:3px solid #000!
 <textarea id="inp" class="box" rows="1" autocomplete="off" aria-label="இங்கே எழுதவும்"></textarea>
 <p id="hint" style="color:#ffeb3b;font-size:15px;margin:0"></p>
 <div id="timer-line" class="hidden" style="font-size:18px">நேரம்: <span id="time">0</span> வினாடிகள்</div>
-<div class="row"><button class="btn-yellow" onclick="practiceTranslate()">Translate</button><button class="btn-yellow" onclick="practiceExplain()">Explain</button></div>
+<div class="row lr"><button class="btn-yellow" onclick="practiceTranslate()">Translate</button><button class="btn-yellow" onclick="practiceExplain()">Explain</button></div>
 <button class="btn-yellow" onclick="submit()">Entry</button>
 <button class="btn-yellow" onclick="goBack()">Back</button>
 </div>
@@ -181,7 +182,7 @@ body.lv .fx,body.lv .sel,body.lv textarea.box,body.lv #ed{border:3px solid #000!
 <div style="font-size:18px">நேரம்: <span id="dp-time">0</span> வினாடிகள்</div>
 <input class="fx" id="dp-inp" type="text" autocomplete="off" aria-label="கேட்ட வார்த்தையை எழுதவும்">
 <p style="margin:0;color:#ffeb3b;font-size:15px">Enter = சமர்ப்பிக்க. Ctrl+Shift+R = மீண்டும் கேட்க. Ctrl+Shift+E = உதாரணம். Ctrl+. = ஆங்கில மொழிபெயர்ப்பு.</p>
-<div class="row"><button class="btn-yellow" onclick="dictTranslate()">Translate</button><button class="btn-yellow" onclick="dictMeaning()">Meaning</button><button class="btn-yellow" onclick="dictExplain()">Explain</button></div>
+<div class="row lr"><button class="btn-yellow" onclick="dictTranslate()">Translate</button><button class="btn-yellow" onclick="dictMeaning()">Meaning</button><button class="btn-yellow" onclick="dictExplain()">Explain</button></div>
 <p id="dp-msg" style="font-size:19px;margin:6px 0"></p>
 <div class="row"><button class="btn-yellow" onclick="dictSubmit()">Entry</button><button class="btn-yellow" onclick="dictRepeat()">Repeat</button><button class="btn-yellow" onclick="goBack()">Back</button></div>
 </div>
@@ -249,6 +250,7 @@ body.lv .fx,body.lv .sel,body.lv textarea.box,body.lv #ed{border:3px solid #000!
 </fieldset>
 <div class="row"><button class="btn-yellow" onclick="closeSet()">Close</button></div>
 </div></div>
+<div id="tbox" class="res hidden" tabindex="-1" style="margin-top:10px"></div>
 <div id="status" aria-live="polite" role="status"></div>
 </div>
 
@@ -379,7 +381,7 @@ async function start(){
   if(cat==='Words')h+='ஒரே ஒரு வார்த்தை மட்டும். ';
   if(method==='hearing')h+='Ctrl+Shift+R = மீண்டும் கேட்க, Ctrl+. = ஆங்கில மொழிபெயர்ப்பு.';
   $('hint').textContent=h;
-  label();show('practice');$('inp').focus();
+  label();show('practice');chime();$('inp').focus();
   if(mode==='testing'){const t0=Date.now();timer=setInterval(()=>{secs=Math.floor((Date.now()-t0)/1000);$('time').textContent=secs},1000)}
   if(method==='hearing'){speak(items[0],'ta');if(items[1])prefetch(items[1])}
 }
@@ -453,7 +455,7 @@ async function finish(){
 function result(counts,wrong,time,meta){
   W=wrong;listText='';edData=null;edBack=false;listReady=false;
   show('result');
-  $('res-head').textContent='நீங்கள் எழுதிய ரிசல்ட்'+(time!==null?' - நேரம்: '+time+' வினாடிகள்':'');
+  $('res-head').textContent='நீங்கள் எழுதிய ரிசல்ட்'+(time!==null?' - நேரம்: '+fmtTime(time):'');
   $('res-counts').textContent='நீங்கள் மொத்தமாக எழுதியவை:\n'+Object.keys(counts).map(k=>`${CATN[k]}: ${counts[k]}`).join('\n');
   $('res-mist').textContent='நீங்கள் தவறு செய்த வார்த்தைகளின் எண்ணிக்கை: '+wrong.length;
   $('res-list').classList.add('hidden');$('read-btn').classList.add('hidden');
@@ -595,7 +597,7 @@ $('fmt').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();
 function openEditor(){
   ed.innerHTML='';ed.style.columnCount=1;closeSub(false);
   $('tb').querySelectorAll('[aria-pressed]').forEach(b=>b.setAttribute('aria-pressed','false'));
-  edWrong=[];if(window.CSS&&CSS.highlights)CSS.highlights.delete('wrongw');
+  edWrong=[];chk.clear();if(window.CSS&&CSS.highlights)CSS.highlights.delete('wrongw');
   show('editor');ed.focus();
   fetch('/api/rejected').then(r=>r.json()).then(l=>{rejMap={};l.forEach(x=>rejMap[x.rejected.normalize('NFC')]=x);markWords(Object.keys(rejMap),'rej')}).catch(()=>{});
 }
@@ -613,6 +615,28 @@ function markWords(list,name){
   CSS.highlights.set(name,new Highlight(...ranges));
 }
 ed.addEventListener('input',()=>{clearTimeout(rejT);rejT=setTimeout(()=>markWords(Object.keys(rejMap),'rej'),300)});
+const chk=new Set();let liveT;
+ed.addEventListener('input',()=>{clearTimeout(liveT);liveT=setTimeout(liveCheck,1000)});
+async function liveCheck(){
+  const t=ed.innerText,ended=/[\s.,!?;:]$/.test(t),nf=w=>w.normalize('NFC');
+  let toks=t.split(/\s+/).map(x=>x.replace(/^[^\u0B80-\u0BFF]+|[^\u0B80-\u0BFF]+$/g,'')).filter(Boolean);
+  if(!ended)toks=toks.slice(0,-1);
+  const msgs=[],newRej=[...new Set(toks.filter(w=>rejMap[nf(w)]&&!chk.has('R'+w)))];
+  newRej.forEach(w=>{chk.add('R'+w);msgs.push('தவறு: '+w+', சரியானது '+rejMap[nf(w)].correct)});
+  const fresh=[...new Set(toks.filter(w=>!chk.has(w)&&!rejMap[nf(w)]))].slice(0,40);
+  fresh.forEach(w=>chk.add(w));
+  if(fresh.length){
+    try{
+      const d=await api('/api/check_words',{words:fresh});
+      (d.wrong||[]).filter(x=>fresh.includes(x.wrong)).forEach(x=>{
+        if(!edWrong.includes(x.wrong))edWrong.push(x.wrong);
+        msgs.push('தவறு: '+x.wrong+', சரியானது '+x.correct);
+      });
+      markWords(edWrong,'wrongw');
+    }catch(e){fresh.forEach(w=>chk.delete(w))}
+  }
+  if(msgs.length){beep();say(msgs.join('. '))}
+}
 function renderSentences(){
   const box=$('res-list');box.innerHTML='';let plain='';
   edData.sentences.forEach((s,i)=>{
@@ -673,7 +697,7 @@ async function dictStart(){
   dc={mode:mode,cat:c.name,ex:e.name,words:e.words,idx:0,res:[],retry:false,t0:Date.now(),rate:rate};
   $('dp-title').textContent=c.name+' - '+e.name;$('dp-msg').textContent='';$('dp-time').textContent=0;say('');
   e.words.slice(0,3).forEach(w=>prefetch(w));
-  show('dprac');
+  show('dprac');chime();
   dictNext();
   clearInterval(timer);
   timer=setInterval(()=>{$('dp-time').textContent=Math.floor((Date.now()-dc.t0)/1000)},1000);
@@ -708,7 +732,7 @@ function dictFinish(){
   const secs=Math.floor((Date.now()-dc.t0)/1000),ok=dc.res.filter(r=>r.ok).length,bad=dc.res.length-ok;
   const wrong=dc.res.filter(r=>!r.ok);
   show('result');
-  $('res-head').textContent='நீங்கள் எழுதிய ரிசல்ட் - நேரம்: '+secs+' வினாடிகள்';
+  $('res-head').textContent='நீங்கள் எழுதிய ரிசல்ட் - நேரம்: '+fmtTime(secs);
   $('res-counts').textContent=dc.cat+' - '+dc.ex+'\nமொத்த வார்த்தைகள்: '+dc.res.length+'\nசரியாக எழுதியவை: '+ok;
   $('res-mist').textContent='தவறாக எழுதிய வார்த்தைகளின் எண்ணிக்கை: '+bad;
   listText=dc.res.map((r,i)=>(i+1)+'. '+r.w+' - '+(r.ok?'சரி':'தவறு. நீங்கள் எழுதியது: '+r.typed)).join('\n');
@@ -784,15 +808,23 @@ function speak(text,lang,rate){
   }
   ttsGet(text,lang,rate).then(u=>{audio=new Audio(u);audio.play()}).catch(()=>say('ஆடியோ கிடைக்கவில்லை. இணைய இணைப்பை சரிபார்க்கவும்.'));
 }
+function sayTemp(m,ms){say(m);setTimeout(()=>{if($('status').textContent===m)$('status').textContent=''},ms||10000)}
+function showBox(m,ms){const b=$('tbox');b.textContent=m;b.classList.remove('hidden');clearTimeout(b._t);b._t=setTimeout(()=>b.classList.add('hidden'),ms||15000)}
+function fmtTime(t){t=Math.round(t||0);if(t<60)return t+' வினாடிகள்';const m=Math.floor(t/60),r=t%60;return m+' நிமிடம்'+(r?' '+r+' வினாடிகள்':'')}
+let actx=null;
+function tone(f,d,t0){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=f;g.gain.value=0.15;o.connect(g);g.connect(actx.destination);const t=actx.currentTime+(t0||0);o.start(t);o.stop(t+d)}catch(e){}}
+function chime(){tone(660,.12);tone(880,.18,.13)}
+function beep(){tone(300,.25)}
 function exampleSpeak(w){
   say('உதாரணம் தயாராகிறது...');
   api('/api/example',{word:w}).then(d=>{
-    if(!d.sentence){say('உதாரணம் கிடைக்கவில்லை');return}
-    say('');speak(w+'. உதாரணம். '+d.sentence,'ta');
+    if(!d||!d.sentence){say('உதாரணம் கிடைக்கவில்லை. சில வினாடி கழித்து மீண்டும் முயற்சிக்கவும்.');return}
+    say('');showBox('உதாரணம்: '+d.sentence);speak(w+'. உதாரணம். '+d.sentence,'ta');
   }).catch(()=>say('உதாரணம் கிடைக்கவில்லை. இணையத்தை சரிபார்க்கவும்.'));
 }
 function translateSpeak(t){
-  api('/api/translate',{text:t}).then(d=>speak(d.translation,'en')).catch(()=>say('மொழிபெயர்க்க முடியவில்லை'));
+  api('/api/translate',{text:t}).then(d=>{if(!d.translation)throw 0;sayTemp('உங்களது ஆங்கில வார்த்தை: '+d.translation,12000)})
+    .catch(()=>say('மொழிபெயர்க்க முடியவில்லை. இணையத்தை சரிபார்க்கவும்.'));
 }
 loadSet();
 try{const sv=sessionStorage.getItem('student');if(sv){student=JSON.parse(sv)}const tv=sessionStorage.getItem('teacher');if(tv){teacher=JSON.parse(tv)}}catch(e){}
