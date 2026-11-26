@@ -48,7 +48,7 @@ def ask_gemini(prompt):
     if not GEMINI_API_KEY:
         raise RuntimeError("Gemini API key இல்லை")
     models = [_GOOD_MODEL[0] or MODEL_NAME]
-    for m in (MODEL_NAME, "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"):
+    for m in (MODEL_NAME, "gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"):
         if m not in models:
             models.append(m)
     body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
@@ -76,7 +76,7 @@ def ask_gemini(prompt):
                 pass
             print("Gemini HTTP பிழை", e.code, model, detail)
             last = e
-            if e.code in (400, 401, 403):
+            if e.code == 401:
                 break
         except Exception as e:
             print("Gemini பிழை", model, e)
